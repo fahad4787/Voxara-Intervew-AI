@@ -1,0 +1,72 @@
+import { NextRequest } from "next/server";
+import { ApiError, fail, ok, parseJson } from "@/lib/api/response";
+import { completeSchema } from "@/lib/api/validators";
+import { requireRequestUser } from "@/lib/auth/session";
+import { interviewsRepository } from "@/lib/db/interviews.repository";
+import { isAdminConfigured } from "@/lib/firebase/admin";
+import { analyzeInterview } from "@/lib/openai/interview-engine";
+import type { InterviewSession } from "@/types/interview";
+
+type Params = { params: Promise<{ id: string }> };
+
+function asSession(value: unknown): InterviewSession | null {
+  if (!value || typeof value !== "object") return null;
+  const session = value as InterviewSession;
+  if (!session.id || !session.token || !Array.isArray(session.messages)) {
+    return null;
+  }
+  return session;
+}
+
+/** Temporary: re-run analysis with the latest scoring logic on an existing transcript. */
+export async function POST(request: NextRequest, { params }: Params) {
+  try {
+    await requireRequestUser(request);
+
+    const { id } = await params;
+    const body = await parseJson(request);
+    const { token, session: clientSession } = completeSchema.parse(body);
+    const useAdmin = isAdminConfigured();
+
+    let session: InterviewSession | null = null;
+    if (useAdmin) {
+      session = await interviewsRepository.getById(id);
+    } else {
+      session = asSession(clientSession);
+    }
+
+    if (!session || session.id !== id || session.token !== token) {
+      throw new ApiError(404, "Interview not found", "NOT_FOUND");
+    }
+
+    const candidateAnswers = session.messages.filter((m) => m.role === "candidate");
+    if (candidateAnswers.length === 0) {
+      throw new ApiError(
+        400,
+        "Nothing to re-score — this interview has no candidate answers.",
+        "NO_ANSWERS",
+      );
+    }
+
+    const report = await analyzeInterview(session);
+    const rescored: InterviewSession = {
+      ...session,
+      report,
+      status: "completed",
+      completedAt: session.completedAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (useAdmin) {
+      await interviewsRepository.complete(session.id, report);
+      return ok({ ...rescored, persisted: true as const });
+    }
+
+    return ok({ ...rescored, persisted: false as const });
+  } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return fail(new ApiError(401, "Sign in required", "UNAUTHORIZED"));
+    }
+    return fail(error);
+  }
+}

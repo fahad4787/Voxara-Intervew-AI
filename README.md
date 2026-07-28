@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Voxara
 
-## Getting Started
+Voice-first AI video interviews with spoken questions, live candidate answers, and scored feedback.
 
-First, run the development server:
+## Features
+
+- Create interviews from a job description
+- AI generates opening + question plan
+- Candidate joins via invite link
+- Camera/mic consent + video room
+- Browser speech recognition + OpenAI conversational follow-ups
+- OpenAI TTS voice for the interviewer
+- Scorecard: content, confidence, grammar, clarity, relevance
+- Speech metrics: filler words, hedging, WPM
+- Recruiter dashboard with sidebar
+- Firebase Authentication (email/password)
+- Firestore database
+
+## Stack
+
+- Next.js (App Router) + TypeScript
+- Tailwind CSS
+- OpenAI SDK
+- Zod validation
+- Firebase Auth + Firestore (+ Admin SDK on server)
+
+## Setup
+
+```bash
+cd ai-interview-platform
+cp .env.example .env.local
+npm install
+```
+
+1. Fill OpenAI + Firebase web keys in `.env.local` (web config is already documented in `.env.example`).
+2. In [Firebase Console](https://console.firebase.google.com/project/interviewai-39afc) → **Authentication** → enable **Email/Password**.
+3. Create a **Firestore** database, then deploy `firestore.rules` (Console or CLI).
+4. Create the superadmin in the Firebase Console (Authentication → Add user), **or** use `/signup` in the app — no service account key required.
+5. Optionally add `FIREBASE_SERVICE_ACCOUNT_KEY` later for server session cookies and Admin Firestore APIs.
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+  app/                  # pages + API routes
+  components/
+    ui/                 # reusable primitives (Button, Input, Card…)
+    brand/              # logo / wordmark
+    auth/               # auth provider + forms
+    interview/          # candidate room pieces
+    interviews/         # recruiter form/cards
+    reports/            # scorecard UI
+    layout/             # navbar, sidebar, page chrome
+  hooks/                # media, speech, audio player
+  lib/
+    api/                # response helpers, validators, client fetch
+    auth/               # Firebase session cookies
+    firebase/           # client + admin SDK helpers
+    openai/             # prompts + interview engine + TTS
+    analysis/           # speech metrics
+    db/                 # interviews repository (Firestore)
+    utils/              # cn, constants
+  types/                # shared domain types
+```
 
-## Learn More
+## Flow
 
-To learn more about Next.js, take a look at the following resources:
+1. Recruiter signs up / signs in → `/dashboard`
+2. Create interview (modal) → paste JD
+3. System creates session + invite token in Firestore
+4. Candidate opens `/interview/[token]`
+5. Consent → AI asks by voice → candidate answers
+6. On finish → analysis report on `/interviews/[id]`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Chrome/Edge recommended for speech recognition
+- Accent is evaluated as clarity/intelligibility only (not nationality)
+- Recruiter auth uses Firebase Email/Password + HTTP-only session cookie
+- Interviews are stored in Firestore (`interviews`, `interviewTokens`, `users`)
+- This codebase uses the existing **web** Firebase app (`1:602535523154:web:ae291b641a6d71e490008b`)

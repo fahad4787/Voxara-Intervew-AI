@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local interview data store
+/data/*.json
+!/data/.gitkeep
+
+.agents/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*.log
+
