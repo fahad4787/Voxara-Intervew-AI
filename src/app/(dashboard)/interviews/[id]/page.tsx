@@ -12,6 +12,7 @@ import { useInterview } from "@/hooks/useInterviews";
 import type { InterviewSession } from "@/types/interview";
 import { DashboardContent } from "@/components/layout/DashboardShell";
 import { InviteLink } from "@/components/interviews/InviteLink";
+import { InterviewRecordingPlayer } from "@/components/interview/InterviewRecordingPlayer";
 import { ReportSummary } from "@/components/reports/ReportSummary";
 import { TranscriptPanel } from "@/components/interview/TranscriptPanel";
 import { Accordion, AccordionItem } from "@/components/ui/Accordion";
@@ -212,78 +213,90 @@ function InterviewDetailContent({ params }: Params) {
             </Panel>
           ) : null}
 
-          <div className="grid items-start gap-6 lg:grid-cols-2">
-            <div className="min-w-0">
-              {rescoring ? (
-                <PageSpinner
-                  label="Re-scoring…"
-                  fill={false}
-                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] py-16"
-                />
-              ) : interview.report ? (
-                <ReportSummary report={interview.report} />
-              ) : (
-                <Panel>
-                  <PanelBody className="py-12 text-center text-sm text-[var(--ink-muted)]">
-                    Report appears here after the candidate finishes.
-                  </PanelBody>
-                </Panel>
-              )}
-            </div>
+          {interview.recordingUrl ? (
+            <InterviewRecordingPlayer src={interview.recordingUrl} />
+          ) : null}
 
-            <Accordion type="multiple" defaultValue={["transcript"]}>
-              <AccordionItem
-                id="job"
+          {interview.status === "ready" ? (
+            <Panel>
+              <PanelHeader
                 title="Job description"
-                meta="Role brief used to build the interview"
-              >
+                description="Role brief used to build the interview."
+              />
+              <PanelBody>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--ink-muted)]">
                   {interview.jobDescription}
                 </p>
-              </AccordionItem>
-
-              {interview.plan ? (
-                <AccordionItem
-                  id="questions"
-                  title="Planned questions"
-                  meta={`${questionCount} question${questionCount === 1 ? "" : "s"}`}
-                >
-                  <ol className="space-y-3 text-sm text-[var(--ink-muted)]">
-                    {interview.plan.questions.map((question, index) => (
-                      <li key={question} className="flex gap-2">
-                        <span className="font-[family-name:var(--font-data)] font-medium text-[var(--accent-strong)]">
-                          {index + 1}.
-                        </span>
-                        <span>{question}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </AccordionItem>
-              ) : null}
-
-              <AccordionItem
-                id="transcript"
-                title="Transcript"
-                meta={
-                  interview.messages.length === 0
-                    ? "No messages yet"
-                    : `${interview.messages.length} turns`
-                }
-              >
-                {interview.messages.length === 0 ? (
-                  <p className="text-sm text-[var(--ink-muted)]">
-                    No messages yet. The conversation will show here once the
-                    candidate starts.
-                  </p>
-                ) : (
-                  <TranscriptPanel
-                    messages={interview.messages}
-                    className="max-h-[28rem]"
+              </PanelBody>
+            </Panel>
+          ) : (
+            <div className="grid items-start gap-6 lg:grid-cols-2">
+              <div className="min-w-0">
+                {rescoring ? (
+                  <PageSpinner
+                    label="Re-scoring…"
+                    fill={false}
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] py-16"
                   />
-                )}
-              </AccordionItem>
-            </Accordion>
-          </div>
+                ) : interview.report ? (
+                  <ReportSummary report={interview.report} />
+                ) : null}
+              </div>
+
+              <Accordion type="multiple" defaultValue={["transcript"]}>
+                <AccordionItem
+                  id="job"
+                  title="Job description"
+                  meta="Role brief used to build the interview"
+                >
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--ink-muted)]">
+                    {interview.jobDescription}
+                  </p>
+                </AccordionItem>
+
+                {interview.plan ? (
+                  <AccordionItem
+                    id="questions"
+                    title="Planned questions"
+                    meta={`${questionCount} question${questionCount === 1 ? "" : "s"}`}
+                  >
+                    <ol className="space-y-3 text-sm text-[var(--ink-muted)]">
+                      {interview.plan.questions.map((question, index) => (
+                        <li key={question} className="flex gap-2">
+                          <span className="font-[family-name:var(--font-data)] font-medium text-[var(--accent-strong)]">
+                            {index + 1}.
+                          </span>
+                          <span>{question}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </AccordionItem>
+                ) : null}
+
+                <AccordionItem
+                  id="transcript"
+                  title="Transcript"
+                  meta={
+                    interview.messages.length === 0
+                      ? "No messages yet"
+                      : `${interview.messages.length} turns`
+                  }
+                >
+                  {interview.messages.length === 0 ? (
+                    <p className="text-sm text-[var(--ink-muted)]">
+                      No messages yet. The conversation will show here once the
+                      candidate starts.
+                    </p>
+                  ) : (
+                    <TranscriptPanel
+                      messages={interview.messages}
+                      className="max-h-[28rem]"
+                    />
+                  )}
+                </AccordionItem>
+              </Accordion>
+            </div>
+          )}
         </div>
       </DashboardContent>
 

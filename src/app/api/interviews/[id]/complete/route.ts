@@ -25,10 +25,23 @@ export async function POST(request: NextRequest, { params }: Params) {
     const useAdmin = isAdminConfigured();
 
     let session: InterviewSession | null = null;
+    const client = asSession(clientSession);
+
     if (useAdmin) {
       session = await interviewsRepository.getById(id);
+      if (session && client) {
+        session = {
+          ...session,
+          recordingUrl: client.recordingUrl ?? session.recordingUrl,
+          recordingPath: client.recordingPath ?? session.recordingPath,
+          messages:
+            client.messages?.length > session.messages.length
+              ? client.messages
+              : session.messages,
+        };
+      }
     } else {
-      session = asSession(clientSession);
+      session = client;
     }
 
     if (!session || session.id !== id || session.token !== token) {
@@ -41,7 +54,10 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const report = await analyzeInterview(session);
     if (useAdmin) {
-      const completed = await interviewsRepository.complete(session.id, report);
+      const completed = await interviewsRepository.complete(session.id, report, {
+        recordingUrl: session.recordingUrl,
+        recordingPath: session.recordingPath,
+      });
       return ok({ ...completed, persisted: true as const });
     }
 

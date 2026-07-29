@@ -17,7 +17,9 @@ export const statusTone: Record<InterviewStatus, BadgeTone> = {
 };
 
 export function statusLabel(status: InterviewStatus) {
-  return status.replaceAll("_", " ");
+  return status
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export const STATUS_FILTERS = [

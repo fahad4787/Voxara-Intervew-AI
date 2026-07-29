@@ -82,13 +82,19 @@ export const interviewsRepository = {
     }));
   },
 
-  async complete(id: string, report: InterviewReport) {
+  async complete(
+    id: string,
+    report: InterviewReport,
+    extras?: Pick<InterviewSession, "recordingUrl" | "recordingPath">,
+  ) {
     return interviewStore.update(id, (current) => ({
       ...current,
       report,
       status: "completed",
       completedAt: now(),
       updatedAt: now(),
+      recordingUrl: extras?.recordingUrl ?? current.recordingUrl,
+      recordingPath: extras?.recordingPath ?? current.recordingPath,
     }));
   },
 

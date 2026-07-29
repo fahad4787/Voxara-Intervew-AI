@@ -33,13 +33,13 @@ export function InviteLink({
         type="button"
         variant="ghost"
         size="sm"
+        iconOnly
         onClick={() => void copy()}
         leadingIcon={copied ? Check : Copy}
         aria-label={copied ? "Invite copied" : "Copy invite link"}
+        title={copied ? "Copied" : "Copy invite"}
         className={className}
-      >
-        {copied ? "Copied" : "Copy invite"}
-      </Button>
+      />
     );
   }
 

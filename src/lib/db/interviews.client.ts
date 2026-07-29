@@ -9,6 +9,7 @@ import {
   where,
 } from "firebase/firestore";
 import { getClientDb } from "@/lib/firebase/client";
+import { deleteInterviewRecording } from "@/lib/firebase/storage";
 import type { InterviewSession } from "@/types/interview";
 
 function stripUndefined<T extends Record<string, unknown>>(value: T): T {
@@ -23,7 +24,6 @@ export async function saveInterviewClient(session: InterviewSession) {
 
   await setDoc(doc(db, "interviews", session.id), payload);
 
-  // Token docs are create-only in rules — never overwrite an existing mapping.
   const tokenRef = doc(db, "interviewTokens", session.token);
   const tokenSnap = await getDoc(tokenRef);
   if (!tokenSnap.exists()) {
@@ -38,6 +38,12 @@ export async function saveInterviewClient(session: InterviewSession) {
 
 export async function deleteInterviewClient(session: InterviewSession) {
   const db = getClientDb();
+  if (session.recordingPath || session.recordingUrl) {
+    await deleteInterviewRecording(
+      session.recordingPath || session.recordingUrl || "",
+      session.id,
+    );
+  }
   await deleteDoc(doc(db, "interviews", session.id));
   if (session.token) {
     try {

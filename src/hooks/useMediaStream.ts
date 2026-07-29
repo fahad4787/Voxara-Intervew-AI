@@ -21,7 +21,8 @@ export function useMediaStream() {
       const media = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
-          noiseSuppression: true,
+          // Noise suppression can eat quiet speech on laptop mics.
+          noiseSuppression: false,
           autoGainControl: true,
         },
         video: {

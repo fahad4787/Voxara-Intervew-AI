@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils/cn";
 
+const BAR_HEIGHTS = [40, 70, 55, 90, 48, 78, 42] as const;
+
 export function AudioVisualizer({
   active,
   className,
@@ -9,20 +11,30 @@ export function AudioVisualizer({
   active: boolean;
   className?: string;
 }) {
-  const bars = Array.from({ length: 5 }, (_, i) => i);
-
   return (
-    <div className={cn("flex h-8 items-end gap-1", className)}>
-      {bars.map((bar) => (
+    <div
+      className={cn(
+        "flex h-9 items-end gap-1",
+        active && "waveform-stage waveform-stage--live",
+        className,
+      )}
+      aria-hidden
+    >
+      {BAR_HEIGHTS.map((height, index) => (
         <span
-          key={bar}
+          key={index}
           className={cn(
-            "w-1.5 rounded-full bg-[var(--accent)]",
-            active ? "opacity-100" : "h-2 opacity-40",
+            "w-1 rounded-full bg-[var(--accent)]",
+            active ? "waveform-bar opacity-100" : "h-2 opacity-35",
           )}
-          style={{
-            height: active ? `${10 + bar * 4 + (bar % 2) * 6}px` : undefined,
-          }}
+          style={
+            active
+              ? {
+                  height: `${height}%`,
+                  animationDelay: `${(index % 5) * 90}ms`,
+                }
+              : undefined
+          }
         />
       ))}
     </div>

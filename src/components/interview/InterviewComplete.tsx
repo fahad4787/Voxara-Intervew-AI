@@ -26,7 +26,7 @@ export function InterviewComplete({ session }: { session: InterviewSession }) {
           showInDashboard ? "Opening your dashboard…" : "Finishing up…"
         }
         fill={false}
-        className="py-20"
+        className="min-h-[calc(100dvh-3.5rem-4rem)]"
       />
     );
   }

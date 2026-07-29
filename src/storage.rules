@@ -1,0 +1,13 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /interviews/{interviewId}/{fileName} {
+      allow read: if true;
+      allow write: if request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*')
+        && fileName.matches('recording\\.(webm|mp4|mp3)');
+      allow delete: if request.auth != null;
+    }
+  }
+}

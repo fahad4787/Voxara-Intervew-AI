@@ -129,6 +129,7 @@ export async function generateNextTurn(
   const response = await openai.chat.completions.create({
     model: getInterviewModel(),
     temperature: 0.6,
+    max_tokens: 160,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: buildTurnSystemPrompt(session) },

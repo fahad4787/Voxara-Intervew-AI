@@ -98,7 +98,7 @@ export function InterviewRow({
           {formatDate(interview.createdAt)}
         </p>
 
-        <div className="flex flex-wrap items-center justify-end gap-1">
+        <div className="flex flex-nowrap items-center justify-end gap-1">
           {interview.status === "ready" ? (
             <InviteLink token={interview.token} compact />
           ) : null}

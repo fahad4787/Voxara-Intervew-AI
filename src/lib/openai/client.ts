@@ -26,5 +26,5 @@ export function getTtsModel() {
 }
 
 export function getTtsVoice() {
-  return process.env.OPENAI_TTS_VOICE || "nova";
+  return process.env.OPENAI_TTS_VOICE || "coral";
 }

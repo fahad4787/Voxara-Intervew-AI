@@ -81,6 +81,8 @@ export interface InterviewSession {
   messages: InterviewMessage[];
   report: InterviewReport | null;
   consentAccepted: boolean;
+  recordingUrl?: string;
+  recordingPath?: string;
   createdAt: string;
   updatedAt: string;
   startedAt?: string;

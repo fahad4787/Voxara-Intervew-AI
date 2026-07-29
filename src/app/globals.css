@@ -235,6 +235,32 @@ a {
   animation: rec-pulse 1.8s ease-in-out infinite;
 }
 
+.consent-stage-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 70%;
+  background: radial-gradient(
+    ellipse 70% 60% at 50% 0%,
+    rgba(15, 118, 110, 0.28),
+    transparent 70%
+  );
+  contain: paint;
+}
+
+.consent-stage-grille {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    rgba(240, 243, 247, 0.06) 1px,
+    transparent 1px
+  );
+  background-size: 16px 16px;
+  opacity: 0.7;
+  contain: paint;
+}
+
 /* Scroll reveals */
 @keyframes reveal-up {
   from {
@@ -324,6 +350,40 @@ a {
   border-bottom: 1px solid var(--border);
   transform: translateZ(0);
   backface-visibility: hidden;
+}
+
+.recording-seek {
+  display: block;
+  width: 100%;
+  height: 0.35rem;
+  appearance: none;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  cursor: pointer;
+}
+
+.recording-seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid var(--surface-elevated);
+  box-shadow: var(--shadow-soft);
+}
+
+.recording-seek::-moz-range-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid var(--surface-elevated);
+}
+
+.recording-seek::-moz-range-track {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
 }
 
 

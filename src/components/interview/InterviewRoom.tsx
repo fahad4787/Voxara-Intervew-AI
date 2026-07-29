@@ -11,9 +11,10 @@ import {
 import { Square } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { saveInterviewClient } from "@/lib/db/interviews.client";
+import { uploadInterviewRecording } from "@/lib/firebase/storage";
 import { useAnswerRecorder } from "@/hooks/useAnswerRecorder";
-import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { useMediaStream } from "@/hooks/useMediaStream";
+import { useSessionRecorder } from "@/hooks/useSessionRecorder";
 import {
   SPEECH_MIN_CHARS,
   SPEECH_SILENCE_MS,
@@ -34,6 +35,7 @@ import { VideoPreview } from "@/components/interview/VideoPreview";
 import { AudioVisualizer } from "@/components/interview/AudioVisualizer";
 import { TranscriptPanel } from "@/components/interview/TranscriptPanel";
 import { Spinner } from "@/components/ui/Progress";
+import { cn } from "@/lib/utils/cn";
 
 type TurnResponse = {
   session: InterviewSession;
@@ -47,11 +49,40 @@ type CompleteResponse = InterviewSession & { persisted?: boolean };
 
 type ListenState = "idle" | "listening" | "processing" | "speaking";
 
+const LISTENING_ACKS = ["Mm-hmm.", "Got it.", "Okay.", "Nice."] as const;
+const POST_ANSWER_TARGET_MS = 2800;
+const POST_ANSWER_MAX_MS = 5000;
+
 function formatClock(totalSeconds: number) {
   const safe = Math.max(0, Math.floor(totalSeconds));
   const m = Math.floor(safe / 60);
   const s = safe % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function transcriptLooksSolid(text: string) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return text.trim().length >= 36 || words.length >= 7;
+}
+
+async function fetchSpeechBase64(text: string): Promise<string | null> {
+  try {
+    const response = await fetch("/api/interview/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      success: boolean;
+      data?: { audioBase64: string };
+    };
+    return payload.success && payload.data?.audioBase64
+      ? payload.data.audioBase64
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 async function transcribeWithWhisper(blob: Blob): Promise<string | null> {
@@ -95,15 +126,25 @@ export function InterviewRoom({
   const [manualFallback, setManualFallback] = useState("");
   const [listenState, setListenState] = useState<ListenState>("idle");
   const [nowTs, setNowTs] = useState(() => Date.now());
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
   const media = useMediaStream();
-  const audio = useAudioPlayer();
+  const {
+    speaking: avaSpeaking,
+    recording: sessionRecording,
+    start: startSessionRec,
+    stop: stopSessionRec,
+    playBase64Mp3,
+    stopPlayback,
+  } = useSessionRecorder();
   const recorder = useAnswerRecorder();
   const submitLockRef = useRef(false);
   const typedSilenceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionRef = useRef(session);
   const phaseRef = useRef(phase);
   const mediaStreamRef = useRef(media.stream);
+  const ackAudioRef = useRef<string[]>([]);
+  const ackIndexRef = useRef(0);
   const speechRef = useRef<{
     start: () => void;
     stop: () => void;
@@ -142,46 +183,99 @@ export function InterviewRoom({
     async (text: string) => {
       try {
         setListenState("speaking");
-        const response = await fetch("/api/interview/speak", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-        if (!response.ok) return;
-        const payload = (await response.json()) as {
-          success: boolean;
-          data?: { audioBase64: string };
-        };
-        if (payload.success && payload.data?.audioBase64) {
-          await audio.playBase64Mp3(payload.data.audioBase64);
+        const audioBase64 = await fetchSpeechBase64(text);
+        if (audioBase64) {
+          await playBase64Mp3(audioBase64);
         }
       } catch {
         // Voice is best-effort; interview continues with text.
       }
     },
-    [audio],
+    [playBase64Mp3],
+  );
+
+  const prefetchListeningAcks = useCallback(async () => {
+    if (ackAudioRef.current.length > 0) return;
+    const clips = await Promise.all(
+      LISTENING_ACKS.map((phrase) => fetchSpeechBase64(phrase)),
+    );
+    ackAudioRef.current = clips.filter((clip): clip is string => Boolean(clip));
+  }, []);
+
+  const playListeningAck = useCallback(() => {
+    const clips = ackAudioRef.current;
+    if (clips.length === 0) return;
+    const clip = clips[ackIndexRef.current % clips.length]!;
+    ackIndexRef.current += 1;
+    void playBase64Mp3(clip, { soft: true }).catch(() => undefined);
+  }, [playBase64Mp3]);
+
+  const waitBeforeNextQuestion = useCallback(async (answerEndedAt: number) => {
+    const sinceEnd = Date.now() - answerEndedAt;
+    const remaining = Math.min(
+      POST_ANSWER_MAX_MS - sinceEnd,
+      Math.max(0, POST_ANSWER_TARGET_MS - sinceEnd),
+    );
+    if (remaining > 200) {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, remaining);
+      });
+    }
+  }, []);
+
+  const attachRecording = useCallback(
+    async (current: InterviewSession): Promise<InterviewSession> => {
+      const blob = await stopSessionRec();
+      if (!blob || blob.size < 1000) return current;
+
+      try {
+        const uploaded = await uploadInterviewRecording(current.id, blob);
+        return {
+          ...current,
+          recordingUrl: uploaded.url,
+          recordingPath: uploaded.path,
+          updatedAt: new Date().toISOString(),
+        };
+      } catch (err) {
+        console.warn("Failed to upload interview recording", err);
+        return current;
+      }
+    },
+    [stopSessionRec],
   );
 
   const completeSession = useCallback(
     async (current: InterviewSession) => {
       setListenState("processing");
+      const withRecording = await attachRecording(current);
       const completed = await apiFetch<CompleteResponse>(
-        `/api/interviews/${current.id}/complete`,
+        `/api/interviews/${withRecording.id}/complete`,
         {
           method: "POST",
           body: JSON.stringify({
-            token: current.token,
-            session: current,
+            token: withRecording.token,
+            session: withRecording,
           }),
         },
       );
       const { persisted, ...nextSession } = completed;
-      setSession(nextSession);
-      if (!persisted) persistSession(nextSession);
+      const merged: InterviewSession = {
+        ...nextSession,
+        recordingUrl: nextSession.recordingUrl ?? withRecording.recordingUrl,
+        recordingPath: nextSession.recordingPath ?? withRecording.recordingPath,
+      };
+      setSession(merged);
+      if (!persisted) persistSession(merged);
+      else if (
+        withRecording.recordingUrl &&
+        !nextSession.recordingUrl
+      ) {
+        persistSession(merged);
+      }
       setPhase("completed");
       setListenState("idle");
     },
-    [persistSession],
+    [attachRecording, persistSession],
   );
 
   const submitAnswer = useEffectEvent(
@@ -191,16 +285,21 @@ export function InterviewRoom({
         return;
       }
 
+      const answerEndedAt = Date.now();
       submitLockRef.current = true;
       setBusy(true);
       setListenState("processing");
       setError(null);
       speechRef.current.stop();
-      audio.stop();
+      stopPlayback();
 
       try {
         let finalText = cleaned;
-        if (audioBlob && audioBlob.size > 1200) {
+        const needsWhisper =
+          Boolean(audioBlob && audioBlob.size > 1200) &&
+          !transcriptLooksSolid(cleaned);
+
+        if (needsWhisper && audioBlob) {
           const whisperText = await transcribeWithWhisper(audioBlob);
           if (whisperText && whisperText.length >= 3) {
             finalText = whisperText;
@@ -227,9 +326,12 @@ export function InterviewRoom({
         speechRef.current.reset();
         setManualFallback("");
 
+        await waitBeforeNextQuestion(answerEndedAt);
+
+        stopPlayback();
         setListenState("speaking");
         if (result.audioBase64) {
-          await audio.playBase64Mp3(result.audioBase64);
+          await playBase64Mp3(result.audioBase64);
         } else {
           await speakText(result.reply);
         }
@@ -253,10 +355,16 @@ export function InterviewRoom({
     },
   );
 
+  const onBackchannel = useEffectEvent(() => {
+    if (phaseRef.current !== "live" || submitLockRef.current) return;
+    playListeningAck();
+  });
+
   const speech = useSpeechRecognition({
     silenceMs: SPEECH_SILENCE_MS,
     minChars: SPEECH_MIN_CHARS,
     onUtteranceEnd,
+    onBackchannel,
   });
 
   useEffect(() => {
@@ -280,8 +388,10 @@ export function InterviewRoom({
     const targetSec = session.durationMinutes * 60;
     const remainingSec = targetSec - elapsedSec;
     return {
+      elapsedSec,
       elapsedLabel: formatClock(elapsedSec),
       remainingLabel: formatClock(Math.abs(remainingSec)),
+      targetLabel: formatClock(targetSec),
       overtime: remainingSec < 0,
       progress: Math.min(100, (elapsedSec / Math.max(targetSec, 1)) * 100),
     };
@@ -294,7 +404,18 @@ export function InterviewRoom({
   }, [phase, media]);
 
   useEffect(() => {
-    if (phase !== "live" || busy || audio.speaking || !speech.supported) {
+    if (phase === "live") {
+      void prefetchListeningAcks();
+    }
+  }, [phase, prefetchListeningAcks]);
+
+  useEffect(() => {
+    if (phase !== "live" || !media.stream || sessionRecording) return;
+    void startSessionRec(media.stream);
+  }, [phase, media.stream, sessionRecording, startSessionRec]);
+
+  useEffect(() => {
+    if (phase !== "live" || busy || avaSpeaking || !speech.supported) {
       return;
     }
 
@@ -309,19 +430,20 @@ export function InterviewRoom({
     };
     // Intentionally depend on conversation gates only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, busy, audio.speaking, speech.supported]);
+  }, [phase, busy, avaSpeaking, speech.supported]);
 
   useEffect(() => {
-    if (audio.speaking) setListenState("speaking");
-  }, [audio.speaking]);
+    if (avaSpeaking) setListenState("speaking");
+  }, [avaSpeaking]);
 
   const acceptConsent = async () => {
     setBusy(true);
     setError(null);
     try {
-      if (!media.stream) {
-        const started = await media.start();
-        if (!started) {
+      let stream = media.stream;
+      if (!stream) {
+        stream = await media.start();
+        if (!stream) {
           setBusy(false);
           return;
         }
@@ -337,6 +459,8 @@ export function InterviewRoom({
       setSession(updated);
       persistSession(updated);
       setPhase("live");
+      await startSessionRec(stream);
+      void prefetchListeningAcks();
       setListenState("speaking");
       await speakText(updated.messages[0]?.content || latestQuestion);
     } catch (err) {
@@ -345,8 +469,6 @@ export function InterviewRoom({
       setBusy(false);
     }
   };
-
-  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
   const answerCount = useMemo(
     () => session.messages.filter((m) => m.role === "candidate").length,
@@ -357,7 +479,7 @@ export function InterviewRoom({
     setBusy(true);
     setError(null);
     speech.stop();
-    audio.stop();
+    stopPlayback();
     void recorder.stop();
     setListenState("speaking");
     setEndConfirmOpen(false);
@@ -408,7 +530,7 @@ export function InterviewRoom({
     if (phase !== "completed") return;
     media.stop();
     speech.stop();
-    audio.stop();
+    stopPlayback();
     onCompleted?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
@@ -458,45 +580,99 @@ export function InterviewRoom({
     : listenState === "listening"
       ? "I’m listening. Pause when you’re done — I’ll take that as your answer."
       : listenState === "processing"
-        ? "Got it. Cleaning up your answer and preparing Ava…"
+        ? "Thanks — taking a moment, then Ava’s next question…"
         : listenState === "speaking"
           ? "Listen to Ava. Your mic will open automatically when she finishes."
           : "Waiting…";
 
   return (
     <>
-      <div className="grid gap-4 lg:grid-cols-[1.35fr_0.9fr]">
-        <Card className="overflow-hidden">
-          <div className="relative bg-[var(--stage)] p-4">
+      <div className="grid items-start gap-4 lg:grid-cols-[1.35fr_0.9fr]">
+        <Card className="overflow-hidden shadow-[var(--shadow-lift)]">
+          <div className="consent-stage relative bg-[var(--stage)] p-4">
+            <div className="consent-stage-glow" aria-hidden />
+            <div className="consent-stage-grille" aria-hidden />
             <VideoPreview
               stream={media.stream}
-              className="aspect-video w-full"
+              className="relative z-[1] aspect-video w-full border border-white/10"
             />
-            <div className="absolute left-7 top-7 flex flex-wrap items-center gap-2">
-              <Badge tone={statusTone}>{statusLabel}</Badge>
+            <div className="absolute left-7 top-7 z-[2] flex flex-wrap items-center gap-2 sm:left-8 sm:top-8">
               <Badge
-                tone={timer.overtime ? "warning" : "neutral"}
-                className="font-[family-name:var(--font-data)] tabular-nums"
+                tone={statusTone}
+                className="inline-flex items-center gap-2"
               >
-                {timer.overtime ? "+" : ""}
-                {timer.overtime ? timer.remainingLabel : timer.elapsedLabel}
-                {" / "}
-                {session.durationMinutes}:00
-              </Badge>
-            </div>
-            <div className="absolute bottom-7 left-7 right-7 rounded-2xl bg-[var(--ink)]/80 p-4 text-[var(--stage-ink)]">
-              <div className="mb-2 h-1 overflow-hidden rounded-full bg-white/15">
-                <div
-                  className="h-full rounded-full bg-[var(--accent)]"
-                  style={{ width: `${timer.progress}%` }}
+                <span
+                  className={cn(
+                    "inline-block h-1.5 w-1.5 rounded-full",
+                    listenState === "listening"
+                      ? "bg-rose-400 rec-dot"
+                      : listenState === "speaking"
+                        ? "bg-[var(--accent)] rec-dot"
+                        : "bg-current opacity-70",
+                  )}
                 />
-              </div>
+                {statusLabel}
+              </Badge>
+              {sessionRecording ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-[var(--ink)]/70 px-3 py-1.5 font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.14em] text-[var(--stage-ink)]">
+                  <span className="rec-dot inline-block h-1.5 w-1.5 rounded-full bg-rose-400" />
+                  Rec
+                </span>
+              ) : null}
+            </div>
+            <div className="absolute bottom-7 left-7 right-7 z-[2] rounded-2xl border border-white/10 bg-[var(--ink)]/80 p-4 text-[var(--stage-ink)]">
               <p className="font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.16em] text-[var(--stage-muted)]">
                 Current question
               </p>
               <p className="mt-1 text-sm leading-relaxed sm:text-base">
                 {latestQuestion}
               </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="min-w-0">
+              <p className="font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.16em] text-[var(--ink-faint)]">
+                Session timer
+              </p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span
+                  className={cn(
+                    "font-[family-name:var(--font-display)] text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl",
+                    timer.overtime
+                      ? "text-amber-700"
+                      : "text-[var(--ink)]",
+                  )}
+                >
+                  {timer.overtime ? "+" : ""}
+                  {timer.overtime ? timer.remainingLabel : timer.elapsedLabel}
+                </span>
+                <span className="font-[family-name:var(--font-data)] text-sm tabular-nums text-[var(--ink-muted)]">
+                  / {timer.targetLabel}
+                </span>
+                {timer.overtime ? (
+                  <Badge tone="warning" className="ml-1">
+                    Wrapping up
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+            <div className="w-full sm:max-w-[14rem]">
+              <div className="mb-1.5 flex items-center justify-between font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.12em] text-[var(--ink-faint)]">
+                <span>Progress</span>
+                <span className="tabular-nums">
+                  {Math.round(timer.progress)}%
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-[width] duration-500 ease-out",
+                    timer.overtime ? "bg-amber-500" : "bg-[var(--accent)]",
+                  )}
+                  style={{ width: `${timer.progress}%` }}
+                />
+              </div>
             </div>
           </div>
 
@@ -514,7 +690,7 @@ export function InterviewRoom({
                   </p>
                   <p className="text-xs text-[var(--ink-muted)]">
                     {session.durationMinutes} min · {session.difficulty}
-                    {timer.overtime ? " · wrapping up" : ""}
+                    {sessionRecording ? " · recording" : ""}
                   </p>
                 </div>
               </div>
@@ -531,7 +707,7 @@ export function InterviewRoom({
 
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">
+                <p className="font-[family-name:var(--font-data)] text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--ink-muted)]">
                   Live transcript
                 </p>
                 {listenState === "processing" ? (
@@ -549,7 +725,7 @@ export function InterviewRoom({
                 value={manualFallback}
                 onChange={(e) => onManualChange(e.target.value)}
                 placeholder="Type naturally — pause briefly to send…"
-                disabled={busy || audio.speaking}
+                disabled={busy || avaSpeaking}
               />
             ) : null}
 
@@ -560,15 +736,22 @@ export function InterviewRoom({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="flex h-full min-h-[28rem] flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium text-[var(--ink)]">Conversation</h3>
+        <Card className="flex max-h-[min(40rem,calc(100dvh-5.5rem))] flex-col overflow-hidden shadow-[var(--shadow-soft)] lg:sticky lg:top-4">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between">
+              <div>
+                <p className="font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.14em] text-[var(--ink-faint)]">
+                  Conversation
+                </p>
+                <h3 className="mt-0.5 font-medium text-[var(--ink)]">
+                  With Ava
+                </h3>
+              </div>
               <Badge>{session.messages.length} turns</Badge>
             </div>
             <TranscriptPanel
               messages={session.messages as InterviewMessage[]}
-              className="flex-1 pr-1"
+              className="min-h-0 flex-1 pr-1"
             />
           </CardContent>
         </Card>
@@ -582,7 +765,7 @@ export function InterviewRoom({
         description={
           answerCount === 0
             ? "You haven’t answered any questions yet. Ending now will mark this as incomplete with a no-hire signal — no fabricated scorecard."
-            : "This will generate the final report from your answers so far."
+            : "This will save the session recording and generate the final report from your answers so far."
         }
         confirmLabel={
           answerCount === 0 ? "End as incomplete" : "End & generate report"
