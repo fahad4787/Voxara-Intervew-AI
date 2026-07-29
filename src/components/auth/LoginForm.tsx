@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Input } from "@/components/ui/Input";
+import { PageSpinner } from "@/components/ui/PageSpinner";
 import { PasswordInput } from "@/components/ui/PasswordInput";
-import { Spinner } from "@/components/ui/Progress";
 import { BodyText, DisplayTitle } from "@/components/ui/Typography";
 import { useSetupStatus } from "@/hooks/useSetupStatus";
 
@@ -36,13 +37,8 @@ export function LoginForm() {
     }
   };
 
-  // Avoid flashing the login form when already signed in.
   if (!ready || user) {
-    return (
-      <div className="flex min-h-40 items-center justify-center">
-        <Spinner />
-      </div>
-    );
+    return <PageSpinner fill={false} className="min-h-40 py-10" />;
   }
 
   return (
@@ -77,13 +73,9 @@ export function LoginForm() {
           required
         />
 
-        {error ? (
-          <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {error}
-          </p>
-        ) : null}
+        {error ? <InlineAlert>{error}</InlineAlert> : null}
 
-        <Button type="submit" className="w-full" loading={loading}>
+        <Button type="submit" className="w-full" loading={loading} brand>
           Sign in
         </Button>
       </form>

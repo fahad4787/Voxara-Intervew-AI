@@ -1,10 +1,7 @@
 import type { InterviewReport } from "@/types/interview";
-import {
-  recommendationLabel,
-  scoreLabel,
-} from "@/lib/utils/cn";
+import { recommendationLabel, scoreLabel } from "@/lib/utils/format";
+import { Accordion, AccordionItem } from "@/components/ui/Accordion";
 import { Badge } from "@/components/ui/Badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Progress, ScoreRing } from "@/components/ui/Progress";
 
 const metricKeys = [
@@ -20,9 +17,9 @@ export function ReportSummary({ report }: { report: InterviewReport }) {
   const incomplete =
     report.scores.overall <= 0 ||
     report.speechMetrics.totalWords === 0 ||
-    report.feedback.recommendation === "no_hire" &&
+    (report.feedback.recommendation === "no_hire" &&
       report.feedback.evidenceQuotes.length === 0 &&
-      report.feedback.strengths.length === 0;
+      report.feedback.strengths.length === 0);
 
   const recTone =
     report.feedback.recommendation === "strong_hire" ||
@@ -32,153 +29,203 @@ export function ReportSummary({ report }: { report: InterviewReport }) {
         ? "warning"
         : "danger";
 
+  const defaultOpen = [
+    "overview",
+    "scores",
+    "feedback",
+    ...(report.feedback.evidenceQuotes.length > 0 ? ["evidence"] : []),
+  ];
+
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="flex flex-col gap-6 py-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-5">
-            <ScoreRing score={report.scores.overall} label="Overall" />
-            <div>
-              <Badge tone={recTone}>
-                {incomplete
-                  ? "Incomplete"
-                  : recommendationLabel(report.feedback.recommendation)}
-              </Badge>
-              <h3 className="mt-2 font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">
-                {incomplete
-                  ? "Not enough signal to score"
-                  : `${scoreLabel(report.scores.overall)} performance`}
-              </h3>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--ink-muted)]">
-                {report.feedback.summary}
-              </p>
-              <p className="mt-3 max-w-xl text-xs leading-relaxed text-[var(--ink-faint)]">
-                Scores prioritize substance and specificity over polished
-                English. Speech metrics are measured from the transcript;
-                confidence/clarity are model judgments with light filler
-                adjustments. Speech-to-text errors for tools (Figma, Miro,
-                Sketch, Jira) are interpreted charitably — vague or incomplete
-                answers are not.
-              </p>
-            </div>
+    <Accordion type="multiple" defaultValue={defaultOpen}>
+      <AccordionItem
+        id="overview"
+        title="Overall score"
+        meta={
+          incomplete
+            ? "Incomplete"
+            : `${scoreLabel(report.scores.overall)} · ${recommendationLabel(report.feedback.recommendation)}`
+        }
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <ScoreRing score={report.scores.overall} label="Overall" />
+          <div className="min-w-0 flex-1">
+            <Badge tone={recTone}>
+              {incomplete
+                ? "Incomplete"
+                : recommendationLabel(report.feedback.recommendation)}
+            </Badge>
+            <h3 className="mt-2 font-[family-name:var(--font-display)] text-xl tracking-tight text-[var(--ink)] sm:text-2xl">
+              {incomplete
+                ? "Not enough signal to score"
+                : `${scoreLabel(report.scores.overall)} performance`}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--ink-muted)]">
+              {report.feedback.summary}
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </AccordionItem>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <h4 className="font-medium text-[var(--ink)]">Score breakdown</h4>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {metricKeys.map(([key, label]) => (
-              <div key={key}>
-                <div className="mb-1.5 flex items-center justify-between text-sm">
-                  <span className="text-[var(--ink-muted)]">{label}</span>
-                  <span className="font-medium text-[var(--ink)]">
-                    {report.scores[key]}
-                  </span>
-                </div>
-                <Progress value={report.scores[key]} />
+      <AccordionItem id="scores" title="Score breakdown" meta="Six metrics">
+        <div className="space-y-3.5">
+          {metricKeys.map(([key, label]) => (
+            <div key={key}>
+              <div className="mb-1.5 flex items-center justify-between text-sm">
+                <span className="text-[var(--ink-muted)]">{label}</span>
+                <span className="font-[family-name:var(--font-data)] text-base font-bold tabular-nums text-[var(--ink)]">
+                  {report.scores[key]}
+                </span>
               </div>
-            ))}
-          </CardContent>
-        </Card>
+              <Progress value={report.scores[key]} />
+            </div>
+          ))}
+        </div>
+      </AccordionItem>
 
-        <Card>
-          <CardHeader>
-            <h4 className="font-medium text-[var(--ink)]">Speech signals</h4>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3 text-sm">
-            <Metric
-              label="Total words"
-              value={String(report.speechMetrics.totalWords)}
-            />
-            <Metric
-              label="Filler words"
-              value={String(report.speechMetrics.fillerWordCount)}
-            />
-            <Metric
-              label="Avg WPM"
-              value={String(report.speechMetrics.averageWordsPerMinute)}
-            />
-            <Metric
-              label="Hedging phrases"
-              value={String(report.speechMetrics.hedgingPhraseCount)}
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <AccordionItem
+        id="speech"
+        title="Speech signals"
+        meta={`${report.speechMetrics.totalWords} words`}
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Metric label="Words" value={String(report.speechMetrics.totalWords)} />
+          <Metric
+            label="Fillers"
+            value={String(report.speechMetrics.fillerWordCount)}
+          />
+          <Metric
+            label="Avg WPM"
+            value={String(report.speechMetrics.averageWordsPerMinute)}
+          />
+          <Metric
+            label="Hedging"
+            value={String(report.speechMetrics.hedgingPhraseCount)}
+          />
+        </div>
+      </AccordionItem>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <NotesCard title="Strengths" items={report.feedback.strengths} />
-        <NotesCard
-          title="Improvements"
-          items={report.feedback.improvements}
-        />
-        <NotesCard
-          title="Grammar notes"
-          items={report.feedback.grammarNotes}
-        />
-        <NotesCard
-          title="Confidence & clarity"
-          items={[
-            ...report.feedback.confidenceNotes,
-            ...report.feedback.clarityNotes,
-          ]}
-        />
-      </div>
+      <AccordionItem id="feedback" title="Feedback" meta="Strengths & gaps">
+        <div className="grid gap-3">
+          <NotesList
+            title="Strengths"
+            items={report.feedback.strengths}
+            tone="success"
+          />
+          <NotesList
+            title="Improvements"
+            items={report.feedback.improvements}
+            tone="info"
+          />
+          <NotesList
+            title="Grammar"
+            items={report.feedback.grammarNotes}
+            tone="neutral"
+          />
+          <NotesList
+            title="Confidence & clarity"
+            tone="warning"
+            items={[
+              ...report.feedback.confidenceNotes,
+              ...report.feedback.clarityNotes,
+            ]}
+          />
+        </div>
+      </AccordionItem>
 
       {report.feedback.evidenceQuotes.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <h4 className="font-medium text-[var(--ink)]">Evidence quotes</h4>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <AccordionItem
+          id="evidence"
+          title="Evidence"
+          meta={`${report.feedback.evidenceQuotes.length} quotes`}
+        >
+          <div className="space-y-2">
             {report.feedback.evidenceQuotes.map((quote) => (
               <blockquote
                 key={quote}
-                className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3 text-sm italic text-[var(--ink-muted)]"
+                className="border-l-2 border-[var(--accent)] pl-4 text-sm italic text-[var(--ink-muted)]"
               >
                 “{quote}”
               </blockquote>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </AccordionItem>
       ) : null}
-    </div>
+    </Accordion>
   );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-[var(--surface-muted)] px-3 py-3">
-      <p className="text-xs text-[var(--ink-muted)]">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-[var(--ink)]">{value}</p>
+    <div className="flex flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3">
+      <p className="font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.14em] text-[var(--ink-faint)]">
+        {label}
+      </p>
+      <p className="font-[family-name:var(--font-data)] text-2xl font-bold tabular-nums text-[var(--ink)]">
+        {value}
+      </p>
     </div>
   );
 }
 
-function NotesCard({ title, items }: { title: string; items: string[] }) {
+const noteTones = {
+  success: {
+    wrap: "border-emerald-200 bg-emerald-50",
+    label: "text-emerald-700",
+    dot: "bg-emerald-500",
+    text: "text-emerald-900",
+  },
+  info: {
+    wrap: "border-sky-200 bg-sky-50",
+    label: "text-sky-700",
+    dot: "bg-sky-500",
+    text: "text-sky-900",
+  },
+  warning: {
+    wrap: "border-amber-200 bg-amber-50",
+    label: "text-amber-700",
+    dot: "bg-amber-500",
+    text: "text-amber-900",
+  },
+  neutral: {
+    wrap: "border-[var(--border)] bg-[var(--surface-muted)]",
+    label: "text-[var(--ink-faint)]",
+    dot: "bg-[var(--ink-faint)]",
+    text: "text-[var(--ink-muted)]",
+  },
+} as const;
+
+function NotesList({
+  title,
+  items,
+  tone = "neutral",
+}: {
+  title: string;
+  items: string[];
+  tone?: keyof typeof noteTones;
+}) {
+  const t = noteTones[tone];
   return (
-    <Card>
-      <CardHeader>
-        <h4 className="font-medium text-[var(--ink)]">{title}</h4>
-      </CardHeader>
-      <CardContent>
-        {items.length === 0 ? (
-          <p className="text-sm text-[var(--ink-muted)]">No notes</p>
-        ) : (
-          <ul className="space-y-2 text-sm text-[var(--ink-muted)]">
-            {items.map((item) => (
-              <li key={item} className="flex gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+    <div className={`rounded-xl border p-4 ${t.wrap}`}>
+      <h4
+        className={`mb-2.5 font-[family-name:var(--font-data)] text-[10px] font-semibold uppercase tracking-[0.15em] ${t.label}`}
+      >
+        {title}
+      </h4>
+      {items.length === 0 ? (
+        <p className={`text-sm opacity-60 ${t.text}`}>No notes</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((item) => (
+            <li key={item} className="flex gap-2.5">
+              <span
+                className={`mt-[0.4rem] h-1.5 w-1.5 shrink-0 rounded-full ${t.dot}`}
+              />
+              <span className={`text-sm leading-relaxed ${t.text}`}>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

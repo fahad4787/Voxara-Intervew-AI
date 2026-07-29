@@ -4,10 +4,6 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 
-/**
- * Landing CTAs — no Firestore setup lookup.
- * Renders Sign in immediately; upgrades to Dashboard when auth is ready.
- */
 export function MarketingCtas({
   size = "lg",
   className,
@@ -20,7 +16,7 @@ export function MarketingCtas({
   if (ready && user) {
     return (
       <div className={cn("flex flex-wrap items-center gap-3", className)}>
-        <Button href="/dashboard" size={size}>
+        <Button href="/dashboard" size={size} brand>
           Go to dashboard
         </Button>
       </div>
@@ -29,7 +25,7 @@ export function MarketingCtas({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-3", className)}>
-      <Button href="/login" size={size}>
+      <Button href="/login" size={size} brand>
         Sign in to admin
       </Button>
     </div>

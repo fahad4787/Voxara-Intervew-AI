@@ -25,7 +25,7 @@ export function VideoPreview({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl bg-[#0f1720]",
+        "relative overflow-hidden rounded-2xl bg-[var(--stage)]",
         className,
       )}
     >

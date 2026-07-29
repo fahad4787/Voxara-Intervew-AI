@@ -13,19 +13,15 @@ export type ButtonVariant =
   | "soft"
   | "ghost"
   | "danger"
+  | "dangerGhost"
   | "accent";
 
 export type ButtonSize = "sm" | "md" | "lg";
 
-/**
- * Voxara button
- * Idle: pill + brand “rec” dot + label
- * Hover: the dot expands into a full accent fill; white label + arrow fade in
- */
 const sizes: Record<ButtonSize, string> = {
-  sm: "h-9 gap-2 px-4 text-sm",
-  md: "h-11 gap-2.5 px-5 text-sm",
-  lg: "h-12 gap-3 px-6 text-[15px]",
+  sm: "h-9 gap-2 px-3.5 text-sm",
+  md: "h-11 gap-2 px-5 text-sm",
+  lg: "h-12 gap-2.5 px-6 text-[15px]",
 };
 
 const iconOnlySizes: Record<ButtonSize, string> = {
@@ -34,15 +30,25 @@ const iconOnlySizes: Record<ButtonSize, string> = {
   lg: "h-12 w-12",
 };
 
-const variants: Record<
+const variants: Record<ButtonVariant, string> = {
+  primary:
+    "border-transparent bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)]",
+  secondary:
+    "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--ink)] hover:border-[var(--ink-faint)] hover:bg-[var(--surface-wash)]",
+  soft: "border-transparent bg-[var(--accent-soft)] text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]/80",
+  ghost:
+    "border-transparent bg-transparent text-[var(--ink-muted)] shadow-none hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]",
+  danger:
+    "border-transparent bg-rose-600 text-white hover:bg-rose-700",
+  dangerGhost:
+    "border-transparent bg-transparent text-rose-600 shadow-none hover:bg-rose-50 hover:text-rose-700",
+  accent:
+    "border-transparent bg-[var(--ink)] text-white hover:bg-[var(--ink)]/90",
+};
+
+const recVariants: Record<
   ButtonVariant,
-  {
-    shell: string;
-    fill: string;
-    idle: string;
-    active: string;
-    spinner: string;
-  }
+  { shell: string; fill: string; idle: string; active: string; spinner: string }
 > = {
   primary: {
     shell:
@@ -69,7 +75,8 @@ const variants: Record<
     spinner: "border-white/35 border-t-white",
   },
   ghost: {
-    shell: "border-transparent bg-transparent shadow-none hover:bg-[var(--surface-muted)]/60",
+    shell:
+      "border-transparent bg-transparent shadow-none hover:bg-[var(--surface-muted)]/60",
     fill: "bg-[var(--accent)]",
     idle: "text-[var(--ink-muted)]",
     active: "text-white",
@@ -77,9 +84,17 @@ const variants: Record<
   },
   danger: {
     shell:
-      "border-rose-200 bg-[var(--surface-elevated)] shadow-[var(--shadow-soft)] hover:border-rose-300 hover:shadow-[var(--shadow-lift)]",
+      "border-transparent bg-rose-600 text-white shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-lift)]",
+    fill: "bg-rose-800",
+    idle: "text-white",
+    active: "text-white",
+    spinner: "border-white/35 border-t-white",
+  },
+  dangerGhost: {
+    shell:
+      "border-transparent bg-transparent shadow-none hover:bg-rose-50",
     fill: "bg-rose-600",
-    idle: "text-rose-700",
+    idle: "text-rose-600",
     active: "text-white",
     spinner: "border-white/35 border-t-white",
   },
@@ -105,13 +120,17 @@ export type ButtonProps = Omit<
   target?: string;
   rel?: string;
   leadingIcon?: LucideIcon;
-  /** Hover trailing icon — defaults to ArrowRight; pass null to hide */
   icon?: LucideIcon | null;
   iconOnly?: boolean;
   label?: string;
+  /** Rec-dot expand animation */
+  brand?: boolean;
 };
 
 const shellBase =
+  "inline-flex items-center justify-center rounded-full border font-medium tracking-[-0.01em] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:pointer-events-none disabled:opacity-45";
+
+const recShellBase =
   "group/button relative inline-flex items-center justify-center overflow-hidden rounded-full border font-medium tracking-[-0.01em] transition-[box-shadow,border-color,background-color] duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:pointer-events-none disabled:opacity-45";
 
 function Spinner({ className }: { className: string }) {
@@ -125,13 +144,60 @@ function Spinner({ className }: { className: string }) {
   );
 }
 
-function ButtonFace({
+function PlainFace({
+  children,
+  loading,
+  size,
+  leadingIcon: LeadingIcon,
+  icon: Icon,
+  iconOnly,
+  label,
+}: {
+  children?: ReactNode;
+  loading?: boolean;
+  size: ButtonSize;
+  leadingIcon?: LucideIcon;
+  icon?: LucideIcon | null;
+  iconOnly?: boolean;
+  label?: string;
+}) {
+  const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const text =
+    loading
+      ? "Please wait…"
+      : label ?? (typeof children === "string" ? children : children);
+
+  if (iconOnly) {
+    const OnlyIcon = LeadingIcon;
+    return loading ? (
+      <Spinner className="border-current/25 border-t-current" />
+    ) : OnlyIcon ? (
+      <OnlyIcon className={iconSize} strokeWidth={2.25} />
+    ) : null;
+  }
+
+  return (
+    <>
+      {loading ? (
+        <Spinner className="border-current/25 border-t-current" />
+      ) : LeadingIcon ? (
+        <LeadingIcon className={cn(iconSize, "shrink-0")} strokeWidth={2.25} />
+      ) : null}
+      {text ? <span className="whitespace-nowrap leading-none">{text}</span> : null}
+      {!loading && Icon ? (
+        <Icon className={cn(iconSize, "shrink-0")} strokeWidth={2.25} />
+      ) : null}
+    </>
+  );
+}
+
+function RecFace({
   children,
   loading,
   variant,
   size,
   leadingIcon: LeadingIcon,
-  icon: Icon = ArrowRight,
+  icon: Icon,
   iconOnly,
   label,
 }: {
@@ -144,7 +210,7 @@ function ButtonFace({
   iconOnly?: boolean;
   label?: string;
 }) {
-  const v = variants[variant];
+  const v = recVariants[variant];
   const text =
     loading
       ? "Please wait…"
@@ -152,7 +218,7 @@ function ButtonFace({
   const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
 
   if (iconOnly) {
-    const OnlyIcon = LeadingIcon ?? ArrowRight;
+    const OnlyIcon = LeadingIcon;
     return (
       <>
         <span
@@ -170,9 +236,9 @@ function ButtonFace({
         >
           {loading ? (
             <Spinner className={v.spinner} />
-          ) : (
+          ) : OnlyIcon ? (
             <OnlyIcon className={iconSize} strokeWidth={2.25} />
-          )}
+          ) : null}
         </span>
         <span
           className={cn(
@@ -182,9 +248,9 @@ function ButtonFace({
         >
           {loading ? (
             <Spinner className={v.spinner} />
-          ) : (
+          ) : OnlyIcon ? (
             <OnlyIcon className={iconSize} strokeWidth={2.25} />
-          )}
+          ) : null}
         </span>
       </>
     );
@@ -192,7 +258,6 @@ function ButtonFace({
 
   return (
     <>
-      {/* Brand fill — the small rec-dot grows into the pill */}
       <span className="relative z-0 flex h-2 w-2 shrink-0 items-center justify-center">
         <span
           aria-hidden
@@ -203,7 +268,6 @@ function ButtonFace({
         />
       </span>
 
-      {/* Idle content */}
       <span
         className={cn(
           "relative z-10 inline-flex items-center gap-2 transition-all duration-300 ease-out group-hover/button:translate-x-1.5 group-hover/button:opacity-0",
@@ -211,14 +275,18 @@ function ButtonFace({
         )}
       >
         {loading ? (
-          <Spinner className={cn(v.spinner, "border-[var(--ink)]/20 border-t-[var(--ink)]")} />
+          <Spinner
+            className={cn(
+              v.spinner,
+              "border-[var(--ink)]/20 border-t-[var(--ink)]",
+            )}
+          />
         ) : LeadingIcon ? (
           <LeadingIcon className={cn(iconSize, "shrink-0")} strokeWidth={2.25} />
         ) : null}
         <span className="whitespace-nowrap leading-none">{text}</span>
       </span>
 
-      {/* Hover content — sits on the expanded fill */}
       <span
         className={cn(
           "pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 opacity-0 transition-opacity duration-300 delay-100 ease-out group-hover/button:opacity-100",
@@ -250,32 +318,46 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       target,
       rel,
       leadingIcon,
-      icon = ArrowRight,
+      icon,
       iconOnly,
       label,
+      brand = false,
       ...props
     },
     ref,
   ) => {
+    const resolvedIcon = icon === undefined ? (brand ? ArrowRight : null) : icon;
+
     const classes = cn(
-      shellBase,
-      variants[variant].shell,
+      brand ? recShellBase : shellBase,
+      brand ? recVariants[variant].shell : variants[variant],
       iconOnly ? iconOnlySizes[size] : sizes[size],
       className,
     );
 
-    const face = (
-      <ButtonFace
+    const face = brand ? (
+      <RecFace
         loading={loading}
         variant={variant}
         size={size}
         leadingIcon={leadingIcon}
-        icon={icon}
+        icon={resolvedIcon}
         iconOnly={iconOnly}
         label={label}
       >
         {children}
-      </ButtonFace>
+      </RecFace>
+    ) : (
+      <PlainFace
+        loading={loading}
+        size={size}
+        leadingIcon={leadingIcon}
+        icon={resolvedIcon}
+        iconOnly={iconOnly}
+        label={label}
+      >
+        {children}
+      </PlainFace>
     );
 
     if (href) {

@@ -1,26 +1,41 @@
 import { cn } from "@/lib/utils/cn";
 
-/** 12 bars — lighter paint than a dense spectrum */
 const WAVEFORM_BARS = [
   42, 68, 52, 86, 48, 74, 39, 81, 55, 70, 44, 78,
 ] as const;
 
-/** Server component — CSS-only motion. */
-export function HeroWaveform({ className }: { className?: string }) {
+export function WaveformBars({
+  variant = "hero",
+  className,
+  heights = WAVEFORM_BARS,
+}: {
+  variant?: "hero" | "live";
+  className?: string;
+  heights?: readonly number[];
+}) {
+  const accentEvery = variant === "hero" ? 4 : 5;
+  const accentClass =
+    variant === "hero" ? "bg-[var(--accent)]/75" : "bg-[var(--accent)]/90";
+  const idleClass =
+    variant === "hero" ? "bg-[var(--ink)]/18" : "bg-white/40";
+
   return (
     <div
       className={cn(
-        "waveform-stage waveform-stage--hero relative flex h-24 w-full items-end gap-1 sm:h-32",
+        "waveform-stage flex items-end gap-1",
+        variant === "hero"
+          ? "waveform-stage--hero relative h-24 w-full sm:h-32"
+          : "waveform-stage--live h-14",
         className,
       )}
       aria-hidden
     >
-      {WAVEFORM_BARS.map((height, index) => (
+      {heights.map((height, index) => (
         <span
           key={index}
           className={cn(
             "flex-1 rounded-full waveform-bar",
-            index % 4 === 0 ? "bg-[var(--accent)]/75" : "bg-[var(--ink)]/18",
+            index % accentEvery === 0 ? accentClass : idleClass,
           )}
           style={{
             height: `${height}%`,
@@ -30,6 +45,10 @@ export function HeroWaveform({ className }: { className?: string }) {
       ))}
     </div>
   );
+}
+
+export function HeroWaveform({ className }: { className?: string }) {
+  return <WaveformBars variant="hero" className={className} />;
 }
 
 export function RecBadge({ className }: { className?: string }) {

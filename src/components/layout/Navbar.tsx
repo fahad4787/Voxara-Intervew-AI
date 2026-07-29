@@ -5,7 +5,6 @@ import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/components/auth/AuthProvider";
 
-/** Marketing nav — auth only, no Firestore setup poll. */
 export function Navbar() {
   const { user, ready } = useAuth();
 
@@ -16,11 +15,11 @@ export function Navbar() {
 
         <nav className="flex items-center gap-2">
           {ready && user ? (
-            <Button href="/dashboard" size="sm">
+            <Button href="/dashboard" size="sm" brand>
               Dashboard
             </Button>
           ) : (
-            <Button href="/login" size="sm">
+            <Button href="/login" size="sm" brand>
               Sign in
             </Button>
           )}

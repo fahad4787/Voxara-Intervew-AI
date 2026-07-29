@@ -1,7 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 import { BodyText, DisplayTitle, Eyebrow } from "@/components/ui/Typography";
 import { VideoPreview } from "@/components/interview/VideoPreview";
 
@@ -23,10 +25,12 @@ export function ConsentGate({
   return (
     <Card className="overflow-hidden">
       <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="relative min-h-72 bg-[#0b1220] p-4 sm:p-6">
+        <div className="relative min-h-72 bg-[var(--stage)] p-4 sm:p-6">
           <VideoPreview stream={stream} className="h-full min-h-64" />
-          <div className="absolute left-8 top-8 rounded-full bg-[#111] px-3 py-1 text-xs text-white">
-            Camera check
+          <div className="absolute left-8 top-8">
+            <Badge tone="neutral" className="bg-[var(--ink)] text-[var(--stage-ink)]">
+              Camera check
+            </Badge>
           </div>
         </div>
         <CardContent className="flex flex-col justify-center gap-5 p-6 sm:p-8">
@@ -48,11 +52,7 @@ export function ConsentGate({
             <li>• You can finish early when ready</li>
           </ul>
 
-          {mediaError ? (
-            <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {mediaError}
-            </p>
-          ) : null}
+          {mediaError ? <InlineAlert>{mediaError}</InlineAlert> : null}
 
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={onEnableMedia}>

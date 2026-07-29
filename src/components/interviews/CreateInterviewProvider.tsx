@@ -72,13 +72,19 @@ export function CreateInterviewProvider({ children }: { children: ReactNode }) {
       <Modal
         open={open}
         onClose={closeCreateInterview}
+        eyebrow="New session"
         title="Create interview"
         description="Paste the job description. Ava will generate an opening, topics, and adaptive follow-ups."
+        bodyClassName="p-0"
+        className="sm:max-w-2xl"
       >
-        <InterviewForm
-          onCancel={closeCreateInterview}
-          onSuccess={closeCreateInterview}
-        />
+        {open ? (
+          <InterviewForm
+            layout="modal"
+            onCancel={closeCreateInterview}
+            onSuccess={closeCreateInterview}
+          />
+        ) : null}
       </Modal>
     </CreateInterviewContext.Provider>
   );

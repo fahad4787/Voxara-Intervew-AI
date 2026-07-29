@@ -7,6 +7,7 @@ import { Button, type ButtonProps } from "@/components/ui/Button";
 export function CreateInterviewButton({
   children = "New interview",
   showIcon = true,
+  brand = true,
   ...props
 }: ButtonProps & { showIcon?: boolean }) {
   const { openCreateInterview } = useCreateInterview();
@@ -16,6 +17,7 @@ export function CreateInterviewButton({
       type="button"
       onClick={openCreateInterview}
       leadingIcon={showIcon ? Plus : undefined}
+      brand={brand}
       {...props}
     >
       {children}

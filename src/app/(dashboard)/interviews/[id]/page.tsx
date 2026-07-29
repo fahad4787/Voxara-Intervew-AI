@@ -2,28 +2,27 @@
 
 import { Suspense, use, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  CheckCircle2,
-  LayoutDashboard,
-  RefreshCw,
-  Trash2,
-} from "lucide-react";
+import { CheckCircle2, ChevronLeft, RefreshCw, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api/client";
 import { saveInterviewClient } from "@/lib/db/interviews.client";
-import { formatDate } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/format";
+import { statusLabel, statusTone } from "@/lib/utils/status";
 import { useInterview } from "@/hooks/useInterviews";
 import type { InterviewSession } from "@/types/interview";
-import { PageHeader } from "@/components/layout/Container";
 import { DashboardContent } from "@/components/layout/DashboardShell";
-import { InviteLink } from "@/components/interviews/InterviewCard";
+import { InviteLink } from "@/components/interviews/InviteLink";
 import { ReportSummary } from "@/components/reports/ReportSummary";
 import { TranscriptPanel } from "@/components/interview/TranscriptPanel";
+import { Accordion, AccordionItem } from "@/components/ui/Accordion";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Spinner } from "@/components/ui/Progress";
+import { InlineAlert } from "@/components/ui/InlineAlert";
+import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
+import { PageSpinner } from "@/components/ui/PageSpinner";
+import { BodyText, DisplayTitle } from "@/components/ui/Typography";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -31,15 +30,7 @@ type RescoreResponse = InterviewSession & { persisted?: boolean };
 
 export default function InterviewDetailPage({ params }: Params) {
   return (
-    <Suspense
-      fallback={
-        <DashboardContent>
-          <div className="flex justify-center py-16">
-            <Spinner className="h-8 w-8" />
-          </div>
-        </DashboardContent>
-      }
-    >
+    <Suspense fallback={null}>
       <InterviewDetailContent params={params} />
     </Suspense>
   );
@@ -54,18 +45,20 @@ function InterviewDetailContent({ params }: Params) {
     useInterview(id);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [rescoring, setRescoring] = useState(false);
   const [rescoreError, setRescoreError] = useState<string | null>(null);
 
   const handleConfirmDelete = async () => {
     if (!interview) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
       await removeInterview();
       setConfirmOpen(false);
       router.push("/interviews");
     } catch (err) {
-      window.alert(
+      setDeleteError(
         err instanceof Error ? err.message : "Failed to delete interview",
       );
     } finally {
@@ -106,9 +99,7 @@ function InterviewDetailContent({ params }: Params) {
   if (loading) {
     return (
       <DashboardContent>
-        <div className="flex justify-center py-16">
-          <Spinner className="h-8 w-8" />
-        </div>
+        <PageSpinner label="Loading interview…" />
       </DashboardContent>
     );
   }
@@ -130,171 +121,159 @@ function InterviewDetailContent({ params }: Params) {
   }
 
   const canRescore = interview.messages.some((m) => m.role === "candidate");
+  const questionCount = interview.plan?.questions.length ?? 0;
 
   return (
     <>
       <DashboardContent>
         {showThanks ? (
-          <Card className="mb-6 border-emerald-200 bg-emerald-50">
-            <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                  <CheckCircle2 className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="font-medium text-[var(--ink)]">
-                    Thank you — interview submitted
-                  </p>
-                  <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                    {interview.candidateName} finished “{interview.title}”. The
-                    scorecard below is ready to review.
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button href="/dashboard" size="sm" leadingIcon={LayoutDashboard}>
-                  Dashboard
-                </Button>
-                <Button href="/interviews" size="sm" variant="secondary">
-                  All interviews
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <PageHeader
-          eyebrow={showThanks ? "Interview complete" : "Interview detail"}
-          title={
-            showThanks
-              ? `Thank you, ${interview.candidateName}`
-              : interview.title
-          }
-          description={
-            showThanks
-              ? `You finished the ${interview.title} interview. Review the report, transcript, and invite details below.`
-              : `${interview.candidateName} · ${interview.difficulty} · ${interview.durationMinutes} min · created ${formatDate(interview.createdAt)}`
-          }
-          actions={
-            <div className="flex flex-wrap gap-2">
-              {showThanks ? (
-                <Button href="/dashboard" leadingIcon={LayoutDashboard}>
-                  Dashboard
-                </Button>
-              ) : null}
-              {canRescore ? (
-                <Button
-                  variant="soft"
-                  onClick={() => void handleRescore()}
-                  loading={rescoring}
-                  disabled={rescoring || deleting}
-                  leadingIcon={RefreshCw}
-                >
-                  Re-score interview
-                </Button>
-              ) : null}
-              <Button
-                variant="danger"
-                onClick={() => setConfirmOpen(true)}
-                disabled={deleting || rescoring}
-                leadingIcon={Trash2}
-              >
-                Delete
-              </Button>
-              <Button href="/interviews" variant="secondary">
-                Back to list
-              </Button>
+          <InlineAlert tone="success" className="mb-6 flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-medium">Interview submitted</p>
+              <p className="mt-1 text-[var(--ink-muted)]">
+                {interview.candidateName} finished “{interview.title}”. Review
+                the scorecard below.
+              </p>
             </div>
-          }
-        />
-
-        {rescoreError ? (
-          <p className="mb-4 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {rescoreError}
-          </p>
+          </InlineAlert>
         ) : null}
 
-        <div className="mb-6 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="brand">{interview.status.replace("_", " ")}</Badge>
-            {interview.plan ? (
-              <Badge>
-                {interview.plan.focusSkills.slice(0, 3).join(" · ")}
-              </Badge>
-            ) : null}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <Link
+              href="/interviews"
+              className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Interviews
+            </Link>
+            <DisplayTitle>{interview.title}</DisplayTitle>
+            <BodyText className="mt-2 max-w-2xl">
+              {`${interview.candidateName} · ${interview.difficulty} · ${interview.durationMinutes} min · ${formatDate(interview.createdAt)}`}
+            </BodyText>
           </div>
-          <div>
-            <p className="mb-2 text-sm font-medium text-[var(--ink)]">
-              Candidate invite link
-            </p>
-            <InviteLink token={interview.token} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={statusTone[interview.status]}>
+              {statusLabel(interview.status)}
+            </Badge>
+            {canRescore ? (
+              <Button
+                variant="soft"
+                onClick={() => void handleRescore()}
+                loading={rescoring}
+                disabled={rescoring || deleting}
+                leadingIcon={RefreshCw}
+              >
+                Re-score
+              </Button>
+            ) : null}
+            <Button
+              variant="dangerGhost"
+              size="sm"
+              iconOnly
+              onClick={() => setConfirmOpen(true)}
+              disabled={deleting || rescoring}
+              leadingIcon={Trash2}
+              aria-label="Delete interview"
+            />
           </div>
         </div>
 
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <div className="sticky-panel space-y-6">
-            {rescoring ? (
-              <Card>
-                <CardContent className="flex items-center justify-center gap-2 py-16 text-sm text-[var(--ink-muted)]">
-                  <Spinner /> Re-scoring with the latest logic…
-                </CardContent>
-              </Card>
-            ) : interview.report ? (
-              <ReportSummary report={interview.report} />
-            ) : (
-              <Card>
-                <CardContent className="py-10 text-center text-sm text-[var(--ink-muted)]">
-                  Report will appear here after the candidate completes the
-                  interview.
-                </CardContent>
-              </Card>
-            )}
-          </div>
+        {rescoreError ? (
+          <InlineAlert className="mb-4">{rescoreError}</InlineAlert>
+        ) : null}
+        {deleteError ? (
+          <InlineAlert className="mb-4">{deleteError}</InlineAlert>
+        ) : null}
 
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <h3 className="font-medium text-[var(--ink)]">
-                  Job description
-                </h3>
-              </CardHeader>
-              <CardContent>
+        <div className="space-y-6">
+          {interview.status !== "completed" ? (
+            <Panel>
+              <PanelHeader
+                title="Session details"
+                description="Status, focus skills, and the candidate invite link."
+              />
+              <PanelBody className="space-y-4">
+                {interview.plan?.focusSkills?.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {interview.plan.focusSkills.slice(0, 5).map((skill) => (
+                      <Badge key={skill}>{skill}</Badge>
+                    ))}
+                  </div>
+                ) : null}
+                <div>
+                  <p className="mb-2 text-sm font-medium text-[var(--ink)]">
+                    Candidate invite
+                  </p>
+                  <InviteLink token={interview.token} />
+                </div>
+              </PanelBody>
+            </Panel>
+          ) : null}
+
+          <div className="grid items-start gap-6 lg:grid-cols-2">
+            <div className="min-w-0">
+              {rescoring ? (
+                <PageSpinner
+                  label="Re-scoring…"
+                  fill={false}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] py-16"
+                />
+              ) : interview.report ? (
+                <ReportSummary report={interview.report} />
+              ) : (
+                <Panel>
+                  <PanelBody className="py-12 text-center text-sm text-[var(--ink-muted)]">
+                    Report appears here after the candidate finishes.
+                  </PanelBody>
+                </Panel>
+              )}
+            </div>
+
+            <Accordion type="multiple" defaultValue={["transcript"]}>
+              <AccordionItem
+                id="job"
+                title="Job description"
+                meta="Role brief used to build the interview"
+              >
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--ink-muted)]">
                   {interview.jobDescription}
                 </p>
-              </CardContent>
-            </Card>
+              </AccordionItem>
 
-            {interview.plan ? (
-              <Card>
-                <CardHeader>
-                  <h3 className="font-medium text-[var(--ink)]">
-                    Planned questions
-                  </h3>
-                </CardHeader>
-                <CardContent>
-                  <ol className="space-y-2 text-sm text-[var(--ink-muted)]">
+              {interview.plan ? (
+                <AccordionItem
+                  id="questions"
+                  title="Planned questions"
+                  meta={`${questionCount} question${questionCount === 1 ? "" : "s"}`}
+                >
+                  <ol className="space-y-3 text-sm text-[var(--ink-muted)]">
                     {interview.plan.questions.map((question, index) => (
                       <li key={question} className="flex gap-2">
-                        <span className="font-semibold text-[var(--accent-strong)]">
+                        <span className="font-[family-name:var(--font-data)] font-medium text-[var(--accent-strong)]">
                           {index + 1}.
                         </span>
                         <span>{question}</span>
                       </li>
                     ))}
                   </ol>
-                </CardContent>
-              </Card>
-            ) : null}
+                </AccordionItem>
+              ) : null}
 
-            <Card>
-              <CardHeader>
-                <h3 className="font-medium text-[var(--ink)]">Transcript</h3>
-              </CardHeader>
-              <CardContent>
+              <AccordionItem
+                id="transcript"
+                title="Transcript"
+                meta={
+                  interview.messages.length === 0
+                    ? "No messages yet"
+                    : `${interview.messages.length} turns`
+                }
+              >
                 {interview.messages.length === 0 ? (
                   <p className="text-sm text-[var(--ink-muted)]">
-                    No messages yet
+                    No messages yet. The conversation will show here once the
+                    candidate starts.
                   </p>
                 ) : (
                   <TranscriptPanel
@@ -302,8 +281,8 @@ function InterviewDetailContent({ params }: Params) {
                     className="max-h-[28rem]"
                   />
                 )}
-              </CardContent>
-            </Card>
+              </AccordionItem>
+            </Accordion>
           </div>
         </div>
       </DashboardContent>

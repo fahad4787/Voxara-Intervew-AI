@@ -29,11 +29,11 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               </BodyText>
             </div>
 
-            <ul className="space-y-3">
+            <ul className="space-y-3 border-t border-[var(--border)] pt-5">
               {AUTH_HIGHLIGHTS.map((item) => (
                 <li
                   key={item}
-                  className="flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-[var(--ink-muted)]"
+                  className="flex items-start gap-3 text-sm text-[var(--ink-muted)]"
                 >
                   <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-strong)]">
                     <Check className="h-3 w-3" />

@@ -60,7 +60,7 @@ export function ScoreRing({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-semibold text-[var(--ink)]">{score}</span>
+        <span className="text-2xl font-bold tabular-nums text-[var(--ink)]">{score}</span>
         {label ? (
           <span className="text-[10px] uppercase tracking-wide text-[var(--ink-muted)]">
             {label}

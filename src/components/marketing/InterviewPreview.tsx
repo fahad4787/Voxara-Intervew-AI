@@ -1,11 +1,10 @@
 import { LogoMark } from "@/components/brand/Logo";
+import { WaveformBars } from "@/components/marketing/HeroWaveform";
 import { cn } from "@/lib/utils/cn";
 import { APP_NAME } from "@/lib/utils/constants";
 
-/** Fewer bars = cheaper paint; CSS motion via .waveform-bar */
 const PREVIEW_BARS = [28, 52, 68, 40, 74, 48, 62, 36, 70, 44, 58, 66] as const;
 
-/** Server component — CSS waveform (same motion as hero). */
 export function InterviewPreview({ className }: { className?: string }) {
   return (
     <div
@@ -32,31 +31,18 @@ export function InterviewPreview({ className }: { className?: string }) {
         </div>
 
         <div className="mt-auto space-y-3">
-          <div
-            className="waveform-stage waveform-stage--live flex h-14 items-end gap-1 rounded-xl bg-white/8 p-3"
-            aria-hidden
-          >
-            {PREVIEW_BARS.map((height, index) => (
-              <span
-                key={index}
-                className={cn(
-                  "flex-1 rounded-full waveform-bar",
-                  index % 5 === 0 ? "bg-[var(--accent)]/90" : "bg-white/40",
-                )}
-                style={{
-                  height: `${height}%`,
-                  animationDelay: `${(index % 5) * 90}ms`,
-                }}
-              />
-            ))}
-          </div>
-          <div className="rounded-xl bg-[#0a0c10] p-4 text-white">
-            <p className="font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.16em] text-white/50">
+          <WaveformBars
+            variant="live"
+            heights={PREVIEW_BARS}
+            className="rounded-xl bg-white/8 p-3"
+          />
+          <div className="rounded-xl bg-[var(--stage)] p-4 text-[var(--stage-ink)]">
+            <p className="font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.16em] text-[var(--stage-muted)]">
               Current question
             </p>
             <p className="mt-1.5 text-sm leading-relaxed sm:text-[15px]">
-              Tell me about a time you shipped something with incomplete
-              requirements.
+              Walk me through how you’d redesign a cluttered settings screen
+              without losing power-user controls.
             </p>
           </div>
         </div>

@@ -7,21 +7,14 @@ import type { InterviewSession } from "@/types/interview";
 import { Logo } from "@/components/brand/Logo";
 import { Container, PageHeader } from "@/components/layout/Container";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Spinner } from "@/components/ui/Progress";
+import { PageSpinner } from "@/components/ui/PageSpinner";
 
 const InterviewRoom = dynamic(
   () =>
     import("@/components/interview/InterviewRoom").then((mod) => ({
       default: mod.InterviewRoom,
     })),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex justify-center py-16">
-        <Spinner className="h-8 w-8" />
-      </div>
-    ),
-  },
+  { ssr: false },
 );
 
 type Params = { params: Promise<{ token: string }> };
@@ -76,9 +69,7 @@ export default function CandidateInterviewPage({ params }: Params) {
       </header>
       <Container className="pt-8">
         {loading ? (
-          <div className="flex justify-center py-20">
-            <Spinner className="h-8 w-8" />
-          </div>
+          <PageSpinner fill={false} className="py-20" />
         ) : !session ? (
           <EmptyState
             title="Interview not found"

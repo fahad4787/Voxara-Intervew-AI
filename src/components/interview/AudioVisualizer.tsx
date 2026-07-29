@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils/cn";
 
 export function AudioVisualizer({
@@ -27,65 +26,5 @@ export function AudioVisualizer({
         />
       ))}
     </div>
-  );
-}
-
-export function WaveCanvas({
-  stream,
-  active,
-}: {
-  stream: MediaStream | null;
-  active: boolean;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (!stream || !active || !canvasRef.current) return;
-
-    const audioContext = new AudioContext();
-    const source = audioContext.createMediaStreamSource(stream);
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 64;
-    source.connect(analyser);
-
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    let frame = 0;
-
-    const draw = () => {
-      frame = requestAnimationFrame(draw);
-      if (!ctx) return;
-      analyser.getByteFrequencyData(data);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const barWidth = canvas.width / data.length;
-      data.forEach((value, index) => {
-        const height = (value / 255) * canvas.height;
-        ctx.fillStyle = "#0f766e";
-        ctx.fillRect(
-          index * barWidth,
-          canvas.height - height,
-          barWidth - 2,
-          height,
-        );
-      });
-    };
-
-    draw();
-
-    return () => {
-      cancelAnimationFrame(frame);
-      source.disconnect();
-      void audioContext.close();
-    };
-  }, [stream, active]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      width={180}
-      height={36}
-      className="rounded-lg bg-[var(--surface-muted)]"
-    />
   );
 }

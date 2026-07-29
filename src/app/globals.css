@@ -10,13 +10,15 @@
   --ink-muted: #5a6472;
   --ink-faint: #8b94a3;
   --border: #cfd6df;
-  --accent: #d63a2f;
-  --accent-strong: #b82f26;
-  --accent-soft: #f8e4e2;
-  --accent-ring: rgba(214, 58, 47, 0.22);
+  --accent: #0f766e;
+  --accent-strong: #0d5c56;
+  --accent-soft: #e7f5f3;
+  --accent-ring: rgba(15, 118, 110, 0.22);
   --steel: #3a5f8a;
   --steel-soft: #e4ebf3;
-  /* Light elevation — cheap single-layer shadows */
+  --stage: #0b1220;
+  --stage-ink: #f0f3f7;
+  --stage-muted: #8b94a3;
   --shadow-soft: 0 1px 2px rgba(18, 22, 31, 0.04), 0 6px 16px rgba(18, 22, 31, 0.05);
   --shadow-lift: 0 4px 18px rgba(18, 22, 31, 0.08);
   --sidebar-width: 17rem;
@@ -82,7 +84,7 @@ body {
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
-/* Themed scrollbars — WebKit */
+/* Themed scrollbars */
 *::-webkit-scrollbar {
   width: var(--scrollbar-size);
   height: var(--scrollbar-size);
@@ -113,7 +115,7 @@ a {
 }
 
 ::selection {
-  background: rgba(214, 58, 47, 0.18);
+  background: rgba(15, 118, 110, 0.18);
 }
 
 .section-y {
@@ -126,7 +128,7 @@ a {
 .hero-atmosphere {
   background: radial-gradient(
     ellipse 80% 50% at 50% -10%,
-    rgba(214, 58, 47, 0.07),
+    rgba(15, 118, 110, 0.08),
     transparent 55%
   );
 }
@@ -145,7 +147,7 @@ a {
   background:
     radial-gradient(
       circle at 18% 20%,
-      rgba(214, 58, 47, 0.12),
+      rgba(15, 118, 110, 0.12),
       transparent 42%
     ),
     radial-gradient(
@@ -177,6 +179,36 @@ a {
   }
 }
 
+@keyframes loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.page-loader {
+  position: relative;
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.page-loader-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.page-loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  border-top-color: var(--accent);
+  border-right-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: loader-spin 0.75s linear infinite;
+  will-change: transform;
+}
+
 .waveform-stage {
   contain: layout paint;
   transform: translateZ(0);
@@ -203,7 +235,7 @@ a {
   animation: rec-pulse 1.8s ease-in-out infinite;
 }
 
-/* Scroll reveals — load for hero; IntersectionObserver + CSS for below-fold */
+/* Scroll reveals */
 @keyframes reveal-up {
   from {
     opacity: 0;
@@ -294,22 +326,8 @@ a {
   backface-visibility: hidden;
 }
 
-.sticky-panel {
-  position: relative;
-}
 
-@media (min-width: 1024px) {
-  .sticky-panel {
-    position: sticky;
-    top: var(--sticky-top);
-    max-height: calc(100vh - var(--sticky-top) - var(--dashboard-pad-y));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-}
-
-/* Pause decorative motion while scrolling — keeps motion without jank */
+/* Pause decorative motion while scrolling */
 html.is-scrolling .waveform-bar,
 html.is-scrolling .rec-dot {
   animation-play-state: paused !important;
@@ -319,7 +337,8 @@ html.is-scrolling .rec-dot {
   .waveform-bar,
   .rec-dot,
   .reveal,
-  .reveal-on-load {
+  .reveal-on-load,
+  .page-loader-ring {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
@@ -327,5 +346,10 @@ html.is-scrolling .rec-dot {
 
   .waveform-bar {
     transform: scaleY(0.75);
+  }
+
+  .page-loader-ring {
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    border-top-color: var(--accent);
   }
 }

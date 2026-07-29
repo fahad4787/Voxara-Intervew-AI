@@ -32,28 +32,34 @@ export function ConfirmModal({
     <Modal
       open={open}
       onClose={loading ? () => undefined : onClose}
+      eyebrow="Confirm"
       title={title}
       description={description}
       className="sm:max-w-md"
+      footer={
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={loading}
+          >
+            {cancelLabel}
+          </Button>
+          <Button
+            type="button"
+            variant={tone === "danger" ? "danger" : "primary"}
+            loading={loading}
+            disabled={loading}
+            onClick={() => void handleConfirm()}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
+      }
     >
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={onClose}
-          disabled={loading}
-        >
-          {cancelLabel}
-        </Button>
-        <Button
-          type="button"
-          variant={tone === "danger" ? "danger" : "primary"}
-          loading={loading}
-          disabled={loading}
-          onClick={() => void handleConfirm()}
-        >
-          {confirmLabel}
-        </Button>
+      <div className="text-sm text-[var(--ink-muted)]">
+        Review the details above, then confirm to continue.
       </div>
     </Modal>
   );

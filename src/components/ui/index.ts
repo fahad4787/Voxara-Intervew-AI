@@ -2,10 +2,15 @@ export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from ".
 export { Input } from "./Input";
 export { PasswordInput } from "./PasswordInput";
 export { Textarea } from "./Textarea";
+export { Select } from "./Select";
 export { Card, CardHeader, CardContent, CardFooter } from "./Card";
+export { Panel, PanelHeader, PanelBody } from "./Panel";
+export { Accordion, AccordionItem } from "./Accordion";
 export { Badge } from "./Badge";
 export { Progress, ScoreRing, Spinner } from "./Progress";
 export { EmptyState } from "./EmptyState";
 export { Eyebrow, DisplayTitle, BodyText, IconTile } from "./Typography";
 export { Modal } from "./Modal";
 export { ConfirmModal } from "./ConfirmModal";
+export { InlineAlert } from "./InlineAlert";
+export { PageSpinner } from "./PageSpinner";

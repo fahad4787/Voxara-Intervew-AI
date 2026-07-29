@@ -25,6 +25,7 @@ import { nanoid } from "nanoid";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Textarea } from "@/components/ui/Textarea";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { InterviewComplete } from "@/components/interview/InterviewComplete";
@@ -466,7 +467,7 @@ export function InterviewRoom({
     <>
       <div className="grid gap-4 lg:grid-cols-[1.35fr_0.9fr]">
         <Card className="overflow-hidden">
-          <div className="relative bg-[#0b1220] p-4">
+          <div className="relative bg-[var(--stage)] p-4">
             <VideoPreview
               stream={media.stream}
               className="aspect-video w-full"
@@ -483,14 +484,14 @@ export function InterviewRoom({
                 {session.durationMinutes}:00
               </Badge>
             </div>
-            <div className="absolute bottom-7 left-7 right-7 rounded-2xl bg-black/70 p-4 text-white">
+            <div className="absolute bottom-7 left-7 right-7 rounded-2xl bg-[var(--ink)]/80 p-4 text-[var(--stage-ink)]">
               <div className="mb-2 h-1 overflow-hidden rounded-full bg-white/15">
                 <div
                   className="h-full rounded-full bg-[var(--accent)]"
                   style={{ width: `${timer.progress}%` }}
                 />
               </div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-white/60">
+              <p className="font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.16em] text-[var(--stage-muted)]">
                 Current question
               </p>
               <p className="mt-1 text-sm leading-relaxed sm:text-base">
@@ -518,7 +519,7 @@ export function InterviewRoom({
                 </div>
               </div>
               <Button
-                variant="ghost"
+                variant="dangerGhost"
                 size="sm"
                 onClick={() => setEndConfirmOpen(true)}
                 disabled={busy && listenState === "processing"}
@@ -552,15 +553,9 @@ export function InterviewRoom({
               />
             ) : null}
 
-            {error ? (
-              <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                {error}
-              </p>
-            ) : null}
+            {error ? <InlineAlert>{error}</InlineAlert> : null}
             {speech.error ? (
-              <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                {speech.error}
-              </p>
+              <InlineAlert tone="warning">{speech.error}</InlineAlert>
             ) : null}
           </CardContent>
         </Card>

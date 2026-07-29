@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { BodyText, DisplayTitle } from "@/components/ui/Typography";
+import { BodyText, DisplayTitle, Eyebrow } from "@/components/ui/Typography";
 import { cn } from "@/lib/utils/cn";
 
 export function Modal({
@@ -11,15 +11,21 @@ export function Modal({
   onClose,
   title,
   description,
+  eyebrow,
   children,
+  footer,
   className,
+  bodyClassName,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   description?: string;
+  eyebrow?: string;
   children: ReactNode;
+  footer?: ReactNode;
   className?: string;
+  bodyClassName?: string;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -53,30 +59,55 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         className={cn(
-          "relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl border border-[var(--border)] bg-[var(--surface-elevated)] sm:max-h-[88vh] sm:max-w-2xl sm:rounded-3xl",
+          "relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl border border-[var(--border)] bg-[var(--surface-elevated)] shadow-[var(--shadow-lift)] sm:max-h-[88vh] sm:max-w-2xl sm:rounded-3xl",
           className,
         )}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
-          <div className="min-w-0">
-            <DisplayTitle id="modal-title" as="h2" size="md" className="text-2xl sm:text-3xl">
-              {title}
-            </DisplayTitle>
-            {description ? (
-              <BodyText className="mt-1 text-sm">{description}</BodyText>
-            ) : null}
+        <header className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              {eyebrow ? <Eyebrow className="mb-1.5">{eyebrow}</Eyebrow> : null}
+              <DisplayTitle
+                id="modal-title"
+                as="h2"
+                size="md"
+                className="text-xl sm:text-2xl"
+              >
+                {title}
+              </DisplayTitle>
+              {description ? (
+                <BodyText className="mt-1.5 text-sm">{description}</BodyText>
+              ) : null}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              iconOnly
+              leadingIcon={X}
+              onClick={onClose}
+              aria-label="Close"
+            />
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            iconOnly
-            leadingIcon={X}
-            onClick={onClose}
-            aria-label="Close"
-          />
+        </header>
+
+        <div
+          className={cn(
+            "min-h-0 flex-1 overscroll-contain",
+            footer
+              ? "overflow-y-auto px-5 py-5 sm:px-6"
+              : "flex flex-col overflow-hidden",
+            bodyClassName,
+          )}
+        >
+          {children}
         </div>
-        <div className="overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
+
+        {footer ? (
+          <footer className="shrink-0 border-t border-[var(--border)] bg-[var(--surface)] px-5 py-4 sm:px-6">
+            {footer}
+          </footer>
+        ) : null}
       </div>
     </div>
   );

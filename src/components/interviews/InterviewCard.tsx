@@ -1,21 +1,15 @@
 "use client";
 
-import { ArrowUpRight, Copy, Check, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowUpRight, Trash2 } from "lucide-react";
+import { useState } from "react";
 import type { InterviewSession } from "@/types/interview";
-import { formatDate, recommendationLabel } from "@/lib/utils/cn";
+import { formatDate, recommendationLabel } from "@/lib/utils/format";
+import { statusLabel, statusTone } from "@/lib/utils/status";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-
-const statusTone = {
-  draft: "neutral",
-  ready: "info",
-  in_progress: "warning",
-  completed: "success",
-  cancelled: "danger",
-} as const;
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 export function InterviewCard({
   interview,
@@ -26,16 +20,18 @@ export function InterviewCard({
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleConfirmDelete = async () => {
     if (!onDelete) return;
     setDeleting(true);
+    setError(null);
     try {
       await onDelete(interview);
       setConfirmOpen(false);
-    } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "Failed to delete interview",
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete interview",
       );
     } finally {
       setDeleting(false);
@@ -59,7 +55,7 @@ export function InterviewCard({
               </p>
             </div>
             <Badge tone={statusTone[interview.status]}>
-              {interview.status.replace("_", " ")}
+              {statusLabel(interview.status)}
             </Badge>
           </div>
 
@@ -85,14 +81,16 @@ export function InterviewCard({
             </p>
           ) : (
             <p className="text-sm text-[var(--ink-muted)]">
-              Invite the candidate to begin the AI video interview.
+              Share the invite so the candidate can start.
             </p>
           )}
+
+          {error ? <InlineAlert>{error}</InlineAlert> : null}
 
           <div className="flex items-center justify-end gap-2">
             {onDelete ? (
               <Button
-                variant="danger"
+                variant="dangerGhost"
                 size="sm"
                 onClick={() => setConfirmOpen(true)}
                 disabled={deleting}
@@ -102,7 +100,12 @@ export function InterviewCard({
                 Delete
               </Button>
             ) : null}
-            <Button href={`/interviews/${interview.id}`} variant="soft" size="sm" icon={ArrowUpRight}>
+            <Button
+              href={`/interviews/${interview.id}`}
+              variant="soft"
+              size="sm"
+              icon={ArrowUpRight}
+            >
               Open
             </Button>
           </div>
@@ -119,34 +122,5 @@ export function InterviewCard({
         loading={deleting}
       />
     </>
-  );
-}
-
-export function InviteLink({ token }: { token: string }) {
-  const [copied, setCopied] = useState(false);
-  const [url, setUrl] = useState(`/interview/${token}`);
-
-  useEffect(() => {
-    setUrl(`${window.location.origin}/interview/${token}`);
-  }, [token]);
-
-  const copy = async () => {
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
-
-  return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <code className="flex-1 truncate rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5 text-xs text-[var(--ink-muted)]">
-        {url}
-      </code>
-      <Button variant="secondary" size="sm" onClick={() => void copy()} leadingIcon={copied ? Check : Copy}>
-        {copied ? "Copied" : "Copy invite"}
-      </Button>
-      <Button href={`/interview/${token}`} size="sm" target="_blank" rel="noreferrer">
-        Open room
-      </Button>
-    </div>
   );
 }
