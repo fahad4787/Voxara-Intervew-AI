@@ -91,7 +91,7 @@ export function Section({
       className={cn(
         "section-y",
         divided && "border-t border-[var(--border)]",
-        tone === "muted" && "bg-[var(--surface)]/55",
+        tone === "muted" && "bg-[var(--surface-wash)]",
         className,
       )}
     >

@@ -1,13 +1,28 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { getInterviewByTokenClient } from "@/lib/db/interviews.client";
 import type { InterviewSession } from "@/types/interview";
 import { Logo } from "@/components/brand/Logo";
 import { Container, PageHeader } from "@/components/layout/Container";
-import { InterviewRoom } from "@/components/interview/InterviewRoom";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Progress";
+
+const InterviewRoom = dynamic(
+  () =>
+    import("@/components/interview/InterviewRoom").then((mod) => ({
+      default: mod.InterviewRoom,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex justify-center py-16">
+        <Spinner className="h-8 w-8" />
+      </div>
+    ),
+  },
+);
 
 type Params = { params: Promise<{ token: string }> };
 

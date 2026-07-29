@@ -1,4 +1,4 @@
-export { Button } from "./Button";
+export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from "./Button";
 export { Input } from "./Input";
 export { PasswordInput } from "./PasswordInput";
 export { Textarea } from "./Textarea";

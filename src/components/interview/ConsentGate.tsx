@@ -25,7 +25,7 @@ export function ConsentGate({
       <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="relative min-h-72 bg-[#0b1220] p-4 sm:p-6">
           <VideoPreview stream={stream} className="h-full min-h-64" />
-          <div className="absolute left-8 top-8 rounded-full bg-black/55 px-3 py-1 text-xs text-white">
+          <div className="absolute left-8 top-8 rounded-full bg-[#111] px-3 py-1 text-xs text-white">
             Camera check
           </div>
         </div>

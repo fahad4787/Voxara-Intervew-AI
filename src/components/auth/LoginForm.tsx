@@ -7,6 +7,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { Spinner } from "@/components/ui/Progress";
 import { BodyText, DisplayTitle } from "@/components/ui/Typography";
 import { useSetupStatus } from "@/hooks/useSetupStatus";
 
@@ -28,11 +29,21 @@ export function LoginForm() {
     setError(null);
     try {
       await signIn(form);
+      router.replace("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in");
       setLoading(false);
     }
   };
+
+  // Avoid flashing the login form when already signed in.
+  if (!ready || user) {
+    return (
+      <div className="flex min-h-40 items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

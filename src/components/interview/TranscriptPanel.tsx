@@ -1,5 +1,3 @@
-"use client";
-
 import type { InterviewMessage } from "@/types/interview";
 import { cn } from "@/lib/utils/cn";
 
@@ -21,7 +19,7 @@ export function TranscriptPanel({
               "max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
               message.role === "assistant"
                 ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                : "ml-auto bg-[var(--surface-elevated)] text-[var(--ink)] border border-[var(--border)]",
+                : "ml-auto border border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--ink)]",
             )}
           >
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider opacity-70">

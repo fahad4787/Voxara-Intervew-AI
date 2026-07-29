@@ -1,10 +1,13 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
-import { useSetupStatus } from "@/hooks/useSetupStatus";
+import { cn } from "@/lib/utils/cn";
 
+/**
+ * Landing CTAs — no Firestore setup lookup.
+ * Renders Sign in immediately; upgrades to Dashboard when auth is ready.
+ */
 export function MarketingCtas({
   size = "lg",
   className,
@@ -12,34 +15,23 @@ export function MarketingCtas({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  const { needsSetup, ready } = useSetupStatus();
+  const { user, ready } = useAuth();
 
-  if (!ready || needsSetup) {
+  if (ready && user) {
     return (
-      <div className={className}>
-        <Link href="/signup">
-          <Button size={size}>
-            Get started
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </Link>
-        <Link href="/login">
-          <Button size={size} variant="secondary">
-            Sign in
-          </Button>
-        </Link>
+      <div className={cn("flex flex-wrap items-center gap-3", className)}>
+        <Button href="/dashboard" size={size}>
+          Go to dashboard
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className={className}>
-      <Link href="/login">
-        <Button size={size}>
-          Sign in to admin
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </Link>
+    <div className={cn("flex flex-wrap items-center gap-3", className)}>
+      <Button href="/login" size={size}>
+        Sign in to admin
+      </Button>
     </div>
   );
 }

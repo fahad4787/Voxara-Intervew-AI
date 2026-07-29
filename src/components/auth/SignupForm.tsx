@@ -31,10 +31,10 @@ export function SignupForm() {
   }, [ready, user, router]);
 
   useEffect(() => {
-    if (setup.ready && setup.setupComplete) {
+    if (setup.ready && setup.setupComplete && !user) {
       router.replace("/login");
     }
-  }, [setup.ready, setup.setupComplete, router]);
+  }, [setup.ready, setup.setupComplete, user, router]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -57,13 +57,14 @@ export function SignupForm() {
         email: form.email,
         password: form.password,
       });
+      router.replace("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create account");
       setLoading(false);
     }
   };
 
-  if (setup.ready && setup.setupComplete) {
+  if (!ready || user || (setup.ready && setup.setupComplete)) {
     return (
       <div className="flex justify-center py-16">
         <Spinner className="h-8 w-8" />

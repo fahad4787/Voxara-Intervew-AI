@@ -19,7 +19,11 @@ export function useMediaStream() {
     setError(null);
     try {
       const media = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
         video: {
           facingMode: "user",
           width: { ideal: 1280 },

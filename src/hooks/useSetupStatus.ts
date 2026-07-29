@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { getClientDb } from "@/lib/firebase/client";
 
@@ -25,13 +25,15 @@ export function useSetupStatus() {
   // Always null on first render so SSR HTML matches the client hydrate pass.
   const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
 
+  // Apply local cache before paint to cut CTA flash after hydration.
+  useLayoutEffect(() => {
+    const cached = readCachedSetup();
+    if (cached === true) setSetupComplete(true);
+  }, []);
+
   useEffect(() => {
     let active = true;
-
     const cached = readCachedSetup();
-    if (cached === true) {
-      setSetupComplete(true);
-    }
 
     void getDoc(doc(getClientDb(), "meta", "setup"))
       .then((snap) => {

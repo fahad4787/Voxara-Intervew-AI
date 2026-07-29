@@ -12,8 +12,12 @@ export function CreateInterviewButton({
   const { openCreateInterview } = useCreateInterview();
 
   return (
-    <Button type="button" onClick={openCreateInterview} {...props}>
-      {showIcon ? <Plus className="h-4 w-4" /> : null}
+    <Button
+      type="button"
+      onClick={openCreateInterview}
+      leadingIcon={showIcon ? Plus : undefined}
+      {...props}
+    >
       {children}
     </Button>
   );

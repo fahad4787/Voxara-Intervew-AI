@@ -22,7 +22,7 @@ import { computeSpeechMetrics } from "@/lib/analysis/speech-metrics";
 
 const planSchema = z.object({
   topics: z.array(z.string()).min(2),
-  questions: z.array(z.string()).min(4),
+  questions: z.array(z.string()).min(3),
   focusSkills: z.array(z.string()).min(2),
   openingMessage: z.string().min(20),
 });
@@ -97,7 +97,15 @@ export async function generateInterviewPlan(
   return planSchema.parse(extractJson(content));
 }
 
-export async function generateNextTurn(session: InterviewSession) {
+export async function generateNextTurn(
+  session: InterviewSession,
+  timing?: {
+    elapsedMinutes: number;
+    targetMinutes: number;
+    forceWrapUp: boolean;
+    answerCount: number;
+  },
+) {
   const openai = getOpenAI();
   const history = session.messages
     .filter((m) => m.role === "assistant" || m.role === "candidate")
@@ -105,6 +113,18 @@ export async function generateNextTurn(session: InterviewSession) {
       role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
       content: m.content,
     }));
+
+  const elapsed = timing?.elapsedMinutes ?? 0;
+  const target = timing?.targetMinutes ?? session.durationMinutes;
+  const progressPct = target > 0 ? Math.round((elapsed / target) * 100) : 0;
+
+  const timingNote = timing
+    ? `Timing: ${elapsed.toFixed(1)} min elapsed of ${target} min target (${progressPct}%). Candidate answers so far: ${timing.answerCount}. Force wrap-up: ${timing.forceWrapUp ? "YES — close warmly now" : "no"}. ${
+        timing.forceWrapUp || progressPct >= 85
+          ? "You may set shouldEnd=true with a warm closing."
+          : "Do NOT end yet — ask another question after a brief acknowledgment."
+      }`
+    : "Timing unavailable — prefer continuing unless the candidate wants to stop.";
 
   const response = await openai.chat.completions.create({
     model: getInterviewModel(),
@@ -115,8 +135,7 @@ export async function generateNextTurn(session: InterviewSession) {
       ...history,
       {
         role: "user",
-        content:
-          "Based on the conversation so far, produce your next interviewer response as JSON.",
+        content: `${timingNote}\n\nBased on the conversation so far, produce your next interviewer response as JSON.`,
       },
     ],
   });
@@ -270,6 +289,7 @@ type AnswerQuality = {
   grammarNudge: number;
   thin: boolean;
   vague: boolean;
+  specific: boolean;
   depth: boolean;
   unfinished: boolean;
   maxOverall: number;
@@ -282,12 +302,8 @@ function applyScoreCaps(
   let { content, relevance, communication, confidence, clarity, grammar } =
     scores;
 
-  // Model often overscores vague juniors into the 85–95 band — clamp hard.
-  if (!quality.depth) {
-    content = Math.min(content, 76);
-    relevance = Math.min(relevance, 78);
-  }
-  if (quality.vague) {
+  // Cap inflated model scores for weak transcripts only — don't crush solid ones.
+  if (quality.vague && !quality.specific) {
     content = Math.min(content, 72);
     relevance = Math.min(relevance, 74);
     communication = Math.min(communication, 72);
@@ -300,6 +316,10 @@ function applyScoreCaps(
     clarity = Math.min(clarity, 68);
     confidence = Math.min(confidence, 74);
   }
+  if (!quality.depth && !quality.specific && !quality.thin) {
+    content = Math.min(content, 78);
+    relevance = Math.min(relevance, 80);
+  }
 
   return normalizeScores({
     content,
@@ -310,6 +330,12 @@ function applyScoreCaps(
     grammar,
     overall: 0,
   });
+}
+
+function isClosingMessage(text: string) {
+  return /thank|goodbye|take care|hiring team|appreciate|best of luck|have a great/i.test(
+    text,
+  );
 }
 
 function computeAnswerQuality(
@@ -340,7 +366,14 @@ function computeAnswerQuality(
   const incompleteRatio =
     answers.length === 0 ? 1 : incompleteCount / answers.length;
 
-  const unfinished = messages[messages.length - 1]?.role === "assistant";
+  const last = messages[messages.length - 1];
+  // Closing thank-yous are NOT unfinished interviews.
+  const unfinished = Boolean(
+    last?.role === "assistant" &&
+      /\?\s*$/.test(last.content.trim()) &&
+      !isClosingMessage(last.content),
+  );
+
   const joined = answers.map((a) => a.content.toLowerCase()).join(" ");
 
   const toolHits = [
@@ -349,23 +382,37 @@ function computeAnswerQuality(
   ].filter((re) => re.test(joined)).length;
 
   const methodHits = [
-    /\b(wireframe|prototype|persona|usability|a\/?b test|research|accessibility|wcag|hipaa|hipack|contrast|responsive|component|library|checkout)\b/i,
-    /\b(wca|bean points|pain points|user acceptance|evaluations|alt text)\b/i,
+    /\b(wireframe|prototype|persona|usability|a\/?b test|research|accessibility|wcag|hipaa|hipack|contrast|responsive|component|library|checkout|design system|information architecture|stakeholder|handoff)\b/i,
+    /\b(wca|bean points|pain points|user acceptance|evaluations|alt text|unmoderated|progressive disclosure)\b/i,
   ].filter((re) => re.test(joined)).length;
 
   const projectHits = [
-    /\b(walmart|agency|health|hospital|audit)\b/i,
+    /\b(walmart|agency|health|hospital|audit|gap|light|furniture|cms|e-?commerce|marketing team)\b/i,
   ].filter((re) => re.test(joined)).length;
 
-  // True depth is rare — project + methods + complete answers, not tool-name drops.
+  const concreteAction =
+    /\b(i (ran|interviewed|redesigned|simplified|presented|built|prototyped|validated|rewrote|mapped))\b/i.test(
+      joined,
+    );
+
   const depth =
     projectHits >= 1 &&
     methodHits >= 1 &&
     toolHits >= 1 &&
-    avgWords >= 40 &&
+    avgWords >= 35 &&
     incompleteRatio < 0.2 &&
     !unfinished &&
-    speechMetrics.totalWords >= 280;
+    speechMetrics.totalWords >= 200;
+
+  const specific =
+    !unfinished &&
+    incompleteRatio < 0.25 &&
+    avgWords >= 32 &&
+    speechMetrics.totalWords >= 180 &&
+    ((toolHits >= 1 && methodHits >= 1) ||
+      (projectHits >= 1 && methodHits >= 1) ||
+      (concreteAction &&
+        (toolHits >= 1 || methodHits >= 1 || projectHits >= 1)));
 
   const thin =
     avgWords < 30 ||
@@ -376,6 +423,7 @@ function computeAnswerQuality(
 
   const vague =
     !depth &&
+    !specific &&
     (toolHits >= 1 || methodHits >= 1 || speechMetrics.totalWords >= 220) &&
     (incompleteRatio >= 0.15 || avgWords < 55 || methodHits + projectHits < 2);
 
@@ -408,21 +456,28 @@ function computeAnswerQuality(
     communicationNudge -= 3;
     relevanceNudge -= 3;
   }
+  if (specific) {
+    contentNudge += 3;
+    relevanceNudge += 3;
+    communicationNudge += 2;
+  }
   if (depth) {
-    contentNudge += 2;
-    relevanceNudge += 2;
+    contentNudge += 3;
+    relevanceNudge += 3;
+    confidenceNudge += 2;
   }
 
-  const clampNudge = (n: number) => Math.max(-10, Math.min(3, n));
+  const clampNudge = (n: number) => Math.max(-10, Math.min(6, n));
 
-  // Hard ceilings so soft model scores cannot become hire/excellent by default.
   let maxOverall = 88;
-  if (!depth) maxOverall = Math.min(maxOverall, 72);
-  if (vague) maxOverall = Math.min(maxOverall, 70);
-  if (thin) maxOverall = Math.min(maxOverall, 66);
-  if (unfinished && thin) maxOverall = Math.min(maxOverall, 64);
-  else if (unfinished) maxOverall = Math.min(maxOverall, 70);
-  if (incompleteRatio >= 0.3) maxOverall = Math.min(maxOverall, 67);
+  if (depth) maxOverall = 88;
+  else if (specific) maxOverall = 78;
+  else maxOverall = 72;
+  if (vague) maxOverall = Math.min(maxOverall, 68);
+  if (thin) maxOverall = Math.min(maxOverall, 64);
+  if (unfinished && thin) maxOverall = Math.min(maxOverall, 62);
+  else if (unfinished) maxOverall = Math.min(maxOverall, 68);
+  if (incompleteRatio >= 0.3) maxOverall = Math.min(maxOverall, 66);
 
   return {
     contentNudge: clampNudge(contentNudge),
@@ -433,6 +488,7 @@ function computeAnswerQuality(
     grammarNudge: clampNudge(grammarNudge),
     thin,
     vague,
+    specific,
     depth,
     unfinished,
     maxOverall,
@@ -444,6 +500,14 @@ function alignRecommendation(
   quality: AnswerQuality,
 ): InterviewFeedback["recommendation"] {
   if (overall >= 85 && quality.depth) return "strong_hire";
+  if (
+    overall >= 70 &&
+    (quality.specific || quality.depth) &&
+    !quality.thin &&
+    !quality.unfinished
+  ) {
+    return "hire";
+  }
   if (overall >= 73 && !quality.thin && !quality.unfinished && !quality.vague) {
     return "hire";
   }

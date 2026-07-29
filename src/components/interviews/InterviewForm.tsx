@@ -7,6 +7,7 @@ import { saveInterviewClient } from "@/lib/db/interviews.client";
 import {
   DEFAULT_DURATION_MINUTES,
   DIFFICULTY_OPTIONS,
+  DURATION_OPTIONS,
 } from "@/lib/utils/constants";
 import type { InterviewSession } from "@/types/interview";
 import { Button } from "@/components/ui/Button";
@@ -95,7 +96,7 @@ export function InterviewForm({
             Difficulty
           </span>
           <select
-            className="h-11 rounded-xl border border-[var(--border)] bg-white px-3.5 text-sm outline-none focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-ring)]"
+            className="h-11 rounded-xl border border-[var(--border)] bg-white px-3.5 text-sm outline-none focus:border-[var(--accent)]"
             value={form.difficulty}
             onChange={(e) =>
               setForm((f) => ({
@@ -111,20 +112,28 @@ export function InterviewForm({
             ))}
           </select>
         </label>
-        <Input
-          label="Duration (minutes)"
-          name="durationMinutes"
-          type="number"
-          min={10}
-          max={60}
-          value={form.durationMinutes}
-          onChange={(e) =>
-            setForm((f) => ({
-              ...f,
-              durationMinutes: Number(e.target.value),
-            }))
-          }
-        />
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-[var(--ink)]">
+            Duration
+          </span>
+          <select
+            className="h-11 rounded-xl border border-[var(--border)] bg-white px-3.5 text-sm outline-none focus:border-[var(--accent)]"
+            name="durationMinutes"
+            value={form.durationMinutes}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                durationMinutes: Number(e.target.value),
+              }))
+            }
+          >
+            {DURATION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="sm:col-span-2">
           <Textarea
             label="Job description"

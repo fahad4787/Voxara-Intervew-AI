@@ -44,7 +44,7 @@ export function Modal({
     <div className="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-6">
       <button
         type="button"
-        className="absolute inset-0 bg-[var(--ink)]/45"
+        className="absolute inset-0 bg-[var(--ink)]/40"
         aria-label="Close dialog"
         onClick={onClose}
       />
@@ -53,7 +53,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         className={cn(
-          "relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-lift)] sm:max-h-[88vh] sm:max-w-2xl sm:rounded-3xl",
+          "relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl border border-[var(--border)] bg-[var(--surface-elevated)] sm:max-h-[88vh] sm:max-w-2xl sm:rounded-3xl",
           className,
         )}
       >
@@ -70,11 +70,11 @@ export function Modal({
             type="button"
             variant="ghost"
             size="sm"
+            iconOnly
+            leadingIcon={X}
             onClick={onClose}
             aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          />
         </div>
         <div className="overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
       </div>

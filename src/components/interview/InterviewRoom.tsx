@@ -11,6 +11,7 @@ import {
 import { Square } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { saveInterviewClient } from "@/lib/db/interviews.client";
+import { useAnswerRecorder } from "@/hooks/useAnswerRecorder";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { useMediaStream } from "@/hooks/useMediaStream";
 import {
@@ -18,7 +19,7 @@ import {
   SPEECH_SILENCE_MS,
   useSpeechRecognition,
 } from "@/hooks/useSpeechRecognition";
-import { buildClosingMessage } from "@/lib/openai/prompts";
+import { buildClosingMessage } from "@/lib/interview/closing";
 import type { InterviewMessage, InterviewSession } from "@/types/interview";
 import { nanoid } from "nanoid";
 import { Button } from "@/components/ui/Button";
@@ -45,6 +46,34 @@ type CompleteResponse = InterviewSession & { persisted?: boolean };
 
 type ListenState = "idle" | "listening" | "processing" | "speaking";
 
+function formatClock(totalSeconds: number) {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const m = Math.floor(safe / 60);
+  const s = safe % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+async function transcribeWithWhisper(blob: Blob): Promise<string | null> {
+  try {
+    const form = new FormData();
+    const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    form.append("audio", blob, `answer.${ext}`);
+    const response = await fetch("/api/interview/transcribe", {
+      method: "POST",
+      body: form,
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      success: boolean;
+      data?: { text?: string };
+    };
+    const text = payload.data?.text?.trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
 export function InterviewRoom({
   initialSession,
   onCompleted,
@@ -64,13 +93,16 @@ export function InterviewRoom({
   const [error, setError] = useState<string | null>(null);
   const [manualFallback, setManualFallback] = useState("");
   const [listenState, setListenState] = useState<ListenState>("idle");
+  const [nowTs, setNowTs] = useState(() => Date.now());
 
   const media = useMediaStream();
   const audio = useAudioPlayer();
+  const recorder = useAnswerRecorder();
   const submitLockRef = useRef(false);
   const typedSilenceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionRef = useRef(session);
   const phaseRef = useRef(phase);
+  const mediaStreamRef = useRef(media.stream);
   const speechRef = useRef<{
     start: () => void;
     stop: () => void;
@@ -87,6 +119,16 @@ export function InterviewRoom({
 
   useEffect(() => {
     phaseRef.current = phase;
+  }, [phase]);
+
+  useEffect(() => {
+    mediaStreamRef.current = media.stream;
+  }, [media.stream]);
+
+  useEffect(() => {
+    if (phase !== "live") return;
+    const id = window.setInterval(() => setNowTs(Date.now()), 1000);
+    return () => window.clearInterval(id);
   }, [phase]);
 
   const persistSession = useCallback((next: InterviewSession) => {
@@ -119,8 +161,30 @@ export function InterviewRoom({
     [audio],
   );
 
+  const completeSession = useCallback(
+    async (current: InterviewSession) => {
+      setListenState("processing");
+      const completed = await apiFetch<CompleteResponse>(
+        `/api/interviews/${current.id}/complete`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            token: current.token,
+            session: current,
+          }),
+        },
+      );
+      const { persisted, ...nextSession } = completed;
+      setSession(nextSession);
+      if (!persisted) persistSession(nextSession);
+      setPhase("completed");
+      setListenState("idle");
+    },
+    [persistSession],
+  );
+
   const submitAnswer = useEffectEvent(
-    async (transcript: string, durationMs: number) => {
+    async (transcript: string, durationMs: number, audioBlob?: Blob | null) => {
       const cleaned = transcript.trim();
       if (!cleaned || submitLockRef.current || phaseRef.current !== "live") {
         return;
@@ -134,12 +198,20 @@ export function InterviewRoom({
       audio.stop();
 
       try {
+        let finalText = cleaned;
+        if (audioBlob && audioBlob.size > 1200) {
+          const whisperText = await transcribeWithWhisper(audioBlob);
+          if (whisperText && whisperText.length >= 3) {
+            finalText = whisperText;
+          }
+        }
+
         const current = sessionRef.current;
         const result = await apiFetch<TurnResponse>("/api/interview/turn", {
           method: "POST",
           body: JSON.stringify({
             token: current.token,
-            transcript: cleaned,
+            transcript: finalText,
             durationMs,
             session: current,
           }),
@@ -161,9 +233,8 @@ export function InterviewRoom({
           await speakText(result.reply);
         }
 
-        if (result.shouldEnd || nextSession.status === "completed") {
-          setPhase("completed");
-          setListenState("idle");
+        if (result.shouldEnd) {
+          await completeSession(nextSession);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to send answer");
@@ -175,8 +246,9 @@ export function InterviewRoom({
   );
 
   const onUtteranceEnd = useEffectEvent(
-    (transcript: string, durationMs: number) => {
-      void submitAnswer(transcript, durationMs);
+    async (transcript: string, durationMs: number) => {
+      const blob = await recorder.stop();
+      void submitAnswer(transcript, durationMs, blob);
     },
   );
 
@@ -199,6 +271,21 @@ export function InterviewRoom({
     return assistants[assistants.length - 1]?.content || "";
   }, [session.messages]);
 
+  const timer = useMemo(() => {
+    const started = session.startedAt
+      ? new Date(session.startedAt).getTime()
+      : nowTs;
+    const elapsedSec = Math.max(0, Math.floor((nowTs - started) / 1000));
+    const targetSec = session.durationMinutes * 60;
+    const remainingSec = targetSec - elapsedSec;
+    return {
+      elapsedLabel: formatClock(elapsedSec),
+      remainingLabel: formatClock(Math.abs(remainingSec)),
+      overtime: remainingSec < 0,
+      progress: Math.min(100, (elapsedSec / Math.max(targetSec, 1)) * 100),
+    };
+  }, [nowTs, session.durationMinutes, session.startedAt]);
+
   useEffect(() => {
     if (phase === "live" && !media.stream) {
       void media.start();
@@ -213,9 +300,11 @@ export function InterviewRoom({
     setListenState("listening");
     speech.reset();
     speech.start();
+    recorder.start(mediaStreamRef.current);
 
     return () => {
       speech.stop();
+      void recorder.stop();
     };
     // Intentionally depend on conversation gates only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -268,6 +357,7 @@ export function InterviewRoom({
     setError(null);
     speech.stop();
     audio.stop();
+    void recorder.stop();
     setListenState("speaking");
     setEndConfirmOpen(false);
 
@@ -289,24 +379,7 @@ export function InterviewRoom({
       setSession(withClosing);
       persistSession(withClosing);
       await speakText(closing);
-
-      setListenState("processing");
-      const completed = await apiFetch<CompleteResponse>(
-        `/api/interviews/${session.id}/complete`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            token: withClosing.token,
-            session: withClosing,
-          }),
-        },
-      );
-
-      const { persisted, ...nextSession } = completed;
-      setSession(nextSession);
-      if (!persisted) persistSession(nextSession);
-      setPhase("completed");
-      setListenState("idle");
+      await completeSession(withClosing);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to complete");
     } finally {
@@ -319,7 +392,7 @@ export function InterviewRoom({
     if (typedSilenceRef.current) clearTimeout(typedSilenceRef.current);
     if (value.trim().length < SPEECH_MIN_CHARS) return;
     typedSilenceRef.current = setTimeout(() => {
-      void submitAnswer(value, 0);
+      void submitAnswer(value, 0, null);
     }, SPEECH_SILENCE_MS);
   };
 
@@ -384,111 +457,127 @@ export function InterviewRoom({
     : listenState === "listening"
       ? "I’m listening. Pause when you’re done — I’ll take that as your answer."
       : listenState === "processing"
-        ? "Got it. Ava is preparing the next question…"
+        ? "Got it. Cleaning up your answer and preparing Ava…"
         : listenState === "speaking"
           ? "Listen to Ava. Your mic will open automatically when she finishes."
           : "Waiting…";
 
   return (
     <>
-    <div className="grid gap-4 lg:grid-cols-[1.35fr_0.9fr]">
-      <Card className="overflow-hidden">
-        <div className="relative bg-[#0b1220] p-4">
-          <VideoPreview
-            stream={media.stream}
-            className="aspect-video w-full"
-          />
-          <div className="absolute left-7 top-7 flex items-center gap-2">
-            <Badge tone={statusTone}>{statusLabel}</Badge>
-          </div>
-          <div className="absolute bottom-7 left-7 right-7 rounded-2xl bg-black/70 p-4 text-white">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-white/60">
-              Current question
-            </p>
-            <p className="mt-1 text-sm leading-relaxed sm:text-base">
-              {latestQuestion}
-            </p>
-          </div>
-        </div>
-
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <AudioVisualizer
-                active={
-                  listenState === "listening" || listenState === "speaking"
-                }
-              />
-              <div>
-                <p className="text-sm font-medium text-[var(--ink)]">
-                  {session.title}
-                </p>
-                <p className="text-xs text-[var(--ink-muted)]">
-                  {session.durationMinutes} min · {session.difficulty}
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEndConfirmOpen(true)}
-              disabled={busy && listenState === "processing"}
-            >
-              <Square className="h-3.5 w-3.5" />
-              End interview
-            </Button>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">
-                Live transcript
-              </p>
-              {listenState === "processing" ? (
-                <Spinner className="h-4 w-4" />
-              ) : null}
-            </div>
-            <p className="min-h-16 text-sm text-[var(--ink)]">
-              {liveTranscript || manualFallback || helperText}
-            </p>
-          </div>
-
-          {!speech.supported ? (
-            <Textarea
-              label="Type your answer"
-              value={manualFallback}
-              onChange={(e) => onManualChange(e.target.value)}
-              placeholder="Type naturally — pause briefly to send…"
-              disabled={busy || audio.speaking}
+      <div className="grid gap-4 lg:grid-cols-[1.35fr_0.9fr]">
+        <Card className="overflow-hidden">
+          <div className="relative bg-[#0b1220] p-4">
+            <VideoPreview
+              stream={media.stream}
+              className="aspect-video w-full"
             />
-          ) : null}
-
-          {error ? (
-            <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {error}
-            </p>
-          ) : null}
-          {speech.error ? (
-            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              {speech.error}
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="flex h-full min-h-[28rem] flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium text-[var(--ink)]">Conversation</h3>
-            <Badge>{session.messages.length} turns</Badge>
+            <div className="absolute left-7 top-7 flex flex-wrap items-center gap-2">
+              <Badge tone={statusTone}>{statusLabel}</Badge>
+              <Badge
+                tone={timer.overtime ? "warning" : "neutral"}
+                className="font-[family-name:var(--font-data)] tabular-nums"
+              >
+                {timer.overtime ? "+" : ""}
+                {timer.overtime ? timer.remainingLabel : timer.elapsedLabel}
+                {" / "}
+                {session.durationMinutes}:00
+              </Badge>
+            </div>
+            <div className="absolute bottom-7 left-7 right-7 rounded-2xl bg-black/70 p-4 text-white">
+              <div className="mb-2 h-1 overflow-hidden rounded-full bg-white/15">
+                <div
+                  className="h-full rounded-full bg-[var(--accent)]"
+                  style={{ width: `${timer.progress}%` }}
+                />
+              </div>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/60">
+                Current question
+              </p>
+              <p className="mt-1 text-sm leading-relaxed sm:text-base">
+                {latestQuestion}
+              </p>
+            </div>
           </div>
-          <TranscriptPanel
-            messages={session.messages as InterviewMessage[]}
-            className="flex-1 pr-1"
-          />
-        </CardContent>
-      </Card>
-    </div>
+
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <AudioVisualizer
+                  active={
+                    listenState === "listening" || listenState === "speaking"
+                  }
+                />
+                <div>
+                  <p className="text-sm font-medium text-[var(--ink)]">
+                    {session.title}
+                  </p>
+                  <p className="text-xs text-[var(--ink-muted)]">
+                    {session.durationMinutes} min · {session.difficulty}
+                    {timer.overtime ? " · wrapping up" : ""}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEndConfirmOpen(true)}
+                disabled={busy && listenState === "processing"}
+                leadingIcon={Square}
+              >
+                End interview
+              </Button>
+            </div>
+
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">
+                  Live transcript
+                </p>
+                {listenState === "processing" ? (
+                  <Spinner className="h-4 w-4" />
+                ) : null}
+              </div>
+              <p className="min-h-16 text-sm text-[var(--ink)]">
+                {liveTranscript || manualFallback || helperText}
+              </p>
+            </div>
+
+            {!speech.supported ? (
+              <Textarea
+                label="Type your answer"
+                value={manualFallback}
+                onChange={(e) => onManualChange(e.target.value)}
+                placeholder="Type naturally — pause briefly to send…"
+                disabled={busy || audio.speaking}
+              />
+            ) : null}
+
+            {error ? (
+              <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {error}
+              </p>
+            ) : null}
+            {speech.error ? (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                {speech.error}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex h-full min-h-[28rem] flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-[var(--ink)]">Conversation</h3>
+              <Badge>{session.messages.length} turns</Badge>
+            </div>
+            <TranscriptPanel
+              messages={session.messages as InterviewMessage[]}
+              className="flex-1 pr-1"
+            />
+          </CardContent>
+        </Card>
+      </div>
 
       <ConfirmModal
         open={endConfirmOpen}
@@ -500,7 +589,9 @@ export function InterviewRoom({
             ? "You haven’t answered any questions yet. Ending now will mark this as incomplete with a no-hire signal — no fabricated scorecard."
             : "This will generate the final report from your answers so far."
         }
-        confirmLabel={answerCount === 0 ? "End as incomplete" : "End & generate report"}
+        confirmLabel={
+          answerCount === 0 ? "End as incomplete" : "End & generate report"
+        }
         loading={busy && listenState === "processing"}
       />
     </>

@@ -1,9 +1,13 @@
 "use client";
 
 import { Suspense, use, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, LayoutDashboard, RefreshCw, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  LayoutDashboard,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { saveInterviewClient } from "@/lib/db/interviews.client";
 import { formatDate } from "@/lib/utils/cn";
@@ -116,9 +120,9 @@ function InterviewDetailContent({ params }: Params) {
           title="Interview not found"
           description={error || "This interview may have been removed."}
           action={
-            <Link href="/interviews">
-              <Button variant="secondary">Back to interviews</Button>
-            </Link>
+            <Button href="/interviews" variant="secondary">
+              Back to interviews
+            </Button>
           }
         />
       </DashboardContent>
@@ -131,7 +135,7 @@ function InterviewDetailContent({ params }: Params) {
     <>
       <DashboardContent>
         {showThanks ? (
-          <Card className="mb-6 border-emerald-200 bg-emerald-50/60">
+          <Card className="mb-6 border-emerald-200 bg-emerald-50">
             <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
@@ -148,17 +152,12 @@ function InterviewDetailContent({ params }: Params) {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Link href="/dashboard">
-                  <Button size="sm">
-                    <LayoutDashboard className="h-4 w-4" />
-                    Dashboard
-                  </Button>
-                </Link>
-                <Link href="/interviews">
-                  <Button size="sm" variant="secondary">
-                    All interviews
-                  </Button>
-                </Link>
+                <Button href="/dashboard" size="sm" leadingIcon={LayoutDashboard}>
+                  Dashboard
+                </Button>
+                <Button href="/interviews" size="sm" variant="secondary">
+                  All interviews
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -179,37 +178,32 @@ function InterviewDetailContent({ params }: Params) {
           actions={
             <div className="flex flex-wrap gap-2">
               {showThanks ? (
-                <Link href="/dashboard">
-                  <Button>
-                    <LayoutDashboard className="h-4 w-4" />
-                    Dashboard
-                  </Button>
-                </Link>
+                <Button href="/dashboard" leadingIcon={LayoutDashboard}>
+                  Dashboard
+                </Button>
               ) : null}
-              {/* TEMP: remove once scoring calibration feels reliable */}
               {canRescore ? (
                 <Button
                   variant="soft"
                   onClick={() => void handleRescore()}
                   loading={rescoring}
                   disabled={rescoring || deleting}
+                  leadingIcon={RefreshCw}
                 >
-                  <RefreshCw className="h-4 w-4" />
                   Re-score interview
                 </Button>
               ) : null}
               <Button
-                variant="ghost"
+                variant="danger"
                 onClick={() => setConfirmOpen(true)}
                 disabled={deleting || rescoring}
-                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                leadingIcon={Trash2}
               >
-                <Trash2 className="h-4 w-4" />
                 Delete
               </Button>
-              <Link href="/interviews">
-                <Button variant="secondary">Back to list</Button>
-              </Link>
+              <Button href="/interviews" variant="secondary">
+                Back to list
+              </Button>
             </div>
           }
         />
@@ -220,7 +214,7 @@ function InterviewDetailContent({ params }: Params) {
           </p>
         ) : null}
 
-        <div className="mb-6 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
+        <div className="mb-6 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="brand">{interview.status.replace("_", " ")}</Badge>
             {interview.plan ? (
@@ -237,8 +231,8 @@ function InterviewDetailContent({ params }: Params) {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-6">
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <div className="sticky-panel space-y-6">
             {rescoring ? (
               <Card>
                 <CardContent className="flex items-center justify-center gap-2 py-16 text-sm text-[var(--ink-muted)]">

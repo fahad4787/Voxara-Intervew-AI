@@ -19,9 +19,9 @@ export function Eyebrow({
 type HeadingTag = "h1" | "h2" | "h3";
 
 const displaySizes = {
-  xl: "text-4xl sm:text-6xl leading-tight",
-  lg: "text-3xl sm:text-4xl",
-  md: "text-2xl sm:text-3xl",
+  xl: "text-4xl sm:text-6xl leading-[0.95] tracking-[-0.03em]",
+  lg: "text-3xl sm:text-4xl tracking-tight",
+  md: "text-2xl sm:text-3xl tracking-tight",
 } as const;
 
 export function DisplayTitle({

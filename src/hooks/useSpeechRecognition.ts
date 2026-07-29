@@ -29,8 +29,8 @@ declare global {
   }
 }
 
-export const SPEECH_SILENCE_MS = 1800;
-export const SPEECH_MIN_CHARS = 12;
+export const SPEECH_SILENCE_MS = 1400;
+export const SPEECH_MIN_CHARS = 10;
 
 type UseSpeechRecognitionOptions = {
   silenceMs?: number;
@@ -135,6 +135,12 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) 
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
+    // Prefer richer alternatives when the browser supports it.
+    try {
+      (recognition as SpeechRecognitionLike & { maxAlternatives?: number }).maxAlternatives = 3;
+    } catch {
+      // optional
+    }
 
     recognition.onresult = (event) => {
       let finalChunk = "";

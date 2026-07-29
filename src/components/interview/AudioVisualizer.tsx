@@ -18,12 +18,11 @@ export function AudioVisualizer({
         <span
           key={bar}
           className={cn(
-            "w-1.5 rounded-full bg-[var(--accent)] transition-all",
-            active ? "animate-pulse" : "h-2 opacity-40",
+            "w-1.5 rounded-full bg-[var(--accent)]",
+            active ? "opacity-100" : "h-2 opacity-40",
           )}
           style={{
             height: active ? `${10 + bar * 4 + (bar % 2) * 6}px` : undefined,
-            animationDelay: `${bar * 120}ms`,
           }}
         />
       ))}

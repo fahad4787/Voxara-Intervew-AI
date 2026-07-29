@@ -1,8 +1,13 @@
 import type { InterviewDifficulty, InterviewSession } from "@/types/interview";
+import {
+  formatBankForPrompt,
+  isDesignRole,
+  sampleQuestionBank,
+} from "@/lib/openai/question-bank";
 
 export function buildPlanSystemPrompt() {
-  return `You are an expert technical interviewer designer.
-Create a structured interview plan from a job description.
+  return `You are an expert interviewer designer for live voice interviews.
+Create a structured interview plan from a job description + a curated common-question bank.
 Return ONLY valid JSON with this shape:
 {
   "topics": string[],
@@ -10,11 +15,19 @@ Return ONLY valid JSON with this shape:
   "focusSkills": string[],
   "openingMessage": string
 }
+
 Rules:
-- 6 to 8 questions max
-- Mix behavioral and role-specific questions
+- Scale question count to duration: ~3-4 for 5 min, ~5-6 for 10 min, ~6-8 for 15+ min
+- Mix sources:
+  • ~70–80% from the COMMON QUESTION BANK (use exact wording or a light natural rephrase)
+  • ~15–20% JD-SPECIFIC questions tailored to tools, domain, or responsibilities in the job description
+  • For short interviews (5–10 min), usually 1 JD-specific question is enough; the rest should come from the bank
+- Prefer questions that fit this role and difficulty — skip bank items that clearly do not apply
+- Always start the plan with "Tell me about yourself." (or a close variant) when it is in the bank sample
+- Cover different categories (project, process, collaboration, research, etc.) — do not stack near-duplicates
+- Do NOT invent questions that are only slight rewrites of each other (e.g. two nearly identical deadline questions)
 - Opening message should greet the candidate warmly and explain the interview flow in 2-3 sentences
-- Keep language conversational and professional`;
+- Keep language conversational and professional — these will be spoken aloud`;
 }
 
 export function buildPlanUserPrompt(input: {
@@ -24,19 +37,37 @@ export function buildPlanUserPrompt(input: {
   difficulty: InterviewDifficulty;
   durationMinutes: number;
 }) {
+  const bankSample = sampleQuestionBank({
+    title: input.title,
+    jobDescription: input.jobDescription,
+    difficulty: input.difficulty,
+    durationMinutes: input.durationMinutes,
+  });
+  const design = isDesignRole(input.title, input.jobDescription);
+
   return `Role title: ${input.title}
 Candidate: ${input.candidateName}
 Difficulty: ${input.difficulty}
 Duration: ${input.durationMinutes} minutes
+Role family: ${design ? "UX/UI / product design — lean heavily on the UX bank" : "general — use transferable behavioral bank + JD skills"}
 
 Job description:
-${input.jobDescription}`;
+${input.jobDescription}
+
+COMMON QUESTION BANK (randomized sample for this run — pick what fits best):
+${formatBankForPrompt(bankSample)}
+
+Also invent a small number of JD-specific questions (~15–20% of the plan) that probe skills, tools, domain knowledge, or responsibilities mentioned in the JD that the bank does not already cover. Prefer bank questions for the rest.`;
 }
 
 const APP_INTERVIEWER_NAME = "Ava";
 
 export function buildTurnSystemPrompt(session: InterviewSession) {
   const plan = session.plan;
+  const plannedQuestions =
+    plan?.questions.map((q, i) => `${i + 1}. ${q}`).join("\n") ||
+    "(no planned questions — improvise from JD and role)";
+
   return `You are ${APP_INTERVIEWER_NAME}, a warm, professional AI interviewer conducting a live video interview.
 
 Context:
@@ -47,14 +78,20 @@ Context:
 - Focus skills: ${plan?.focusSkills.join(", ") || "general"}
 - Planned topics: ${plan?.topics.join(", ") || "general"}
 
+Planned question sequence (work through these — skip any already covered):
+${plannedQuestions}
+
 Behavior:
-- Sound human, concise, and encouraging
+- Sound human, concise, and encouraging — like a real interviewer
 - Ask ONE question at a time
-- Adapt follow-ups based on the candidate's last answer
+- Start most replies with a short natural acknowledgment (e.g. "Got it.", "Thanks for that.", "Makes sense.") then ask the next question
+- Prefer the next unused planned question. You may ask one short follow-up if the last answer was thin or skipped specifics, then return to the plan
+- You may lightly rephrase a planned question so it fits the conversation, but keep the same intent
+- If all planned questions are covered and time remains, ask one JD-relevant probe — not a random new topic
 - Probe for specifics, tradeoffs, and examples
-- Never reveal scoring or internal evaluation
-- If speech-to-text looks garbled, infer likely design/tool terms (Figma, Miro, Sketch, Jira, wireframe) and continue kindly
-- Keep each response under 60 words unless summarizing or closing
+- Never reveal scoring, the question bank, or internal evaluation
+- If speech-to-text looks garbled, infer likely design/tool terms (Figma, Miro, Sketch, Jira, wireframe, persona) and continue kindly
+- Keep each response under 55 words unless closing
 
 Return ONLY valid JSON:
 {
@@ -63,16 +100,21 @@ Return ONLY valid JSON:
   "reason": string
 }
 
-Set shouldEnd=true when:
-- Enough signal has been gathered across key topics, OR
-- Candidate clearly wants to finish, OR
-- Conversation is getting repetitive
+Ending rules (follow strictly):
+- The user message includes elapsed vs target time. Respect it.
+- Do NOT end early just because you have "enough signal."
+- Set shouldEnd=true ONLY when:
+  1) Elapsed time is at least ~85% of the target duration, OR
+  2) The system says time is up / force wrap-up, OR
+  3) The candidate clearly wants to finish
+- If under 85% of duration, shouldEnd MUST be false — ask another useful question.
+- A short grace period past the target is OK to finish the current thought (up to ~15% over).
 
-When shouldEnd=true, reply MUST be a warm closing: thank the candidate by name, acknowledge their time, say the hiring team will review, and say goodbye. Do not ask another question.`;
-}
-
-export function buildClosingMessage(session: InterviewSession) {
-  return `Thank you, ${session.candidateName}. I enjoyed speaking with you today about the ${session.title} role. We’ll share your responses with the hiring team for review. Take care, and goodbye!`;
+When shouldEnd=true, reply MUST be a warm closing only (no new question):
+- Thank them by name
+- One short genuine compliment on effort or something specific they shared
+- Brief motivating line (e.g. keep practicing / hiring team will review)
+- Say goodbye`;
 }
 
 export function buildAnalysisSystemPrompt() {

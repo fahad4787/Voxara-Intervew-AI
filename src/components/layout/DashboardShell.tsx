@@ -56,9 +56,9 @@ function NavLink({
       href={href}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
+        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
         active
-          ? "bg-[var(--accent-soft)] text-[var(--accent-strong)] shadow-[inset_0_0_0_1px_rgba(15,118,110,0.08)]"
+          ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
           : "text-[var(--ink-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]",
       )}
     >
@@ -78,7 +78,7 @@ function NewInterviewNavButton({ onNavigate }: { onNavigate?: () => void }) {
         onNavigate?.();
         openCreateInterview();
       }}
-      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
+      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
     >
       <Plus className="h-4 w-4 shrink-0" />
       New interview
@@ -150,12 +150,12 @@ function SidebarPanel({
             </div>
           </div>
           <Button
-            variant="ghost"
+            variant="danger"
             size="sm"
-            className="mt-3 w-full justify-start text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+            className="mt-3 w-full"
+            leadingIcon={LogOut}
             onClick={onSignOut}
           >
-            <LogOut className="h-4 w-4" />
             Sign out
           </Button>
         </div>
@@ -188,9 +188,9 @@ function DashboardHeader({
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]">
+    <header className="dashboard-header sticky top-0 z-30">
       <div
-        className="flex h-16 items-center justify-between gap-4"
+        className="flex h-full items-center justify-between gap-4"
         style={{
           paddingLeft: "var(--dashboard-pad-x)",
           paddingRight: "var(--dashboard-pad-x)",
@@ -202,10 +202,10 @@ function DashboardHeader({
             size="sm"
             className="lg:hidden"
             onClick={onMenuOpen}
+            iconOnly
+            leadingIcon={Menu}
             aria-label="Open menu"
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
+          />
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ink-faint)]">
               Dashboard
@@ -292,17 +292,17 @@ function DashboardChrome({ children }: { children: ReactNode }) {
             onClick={() => setMobileOpen(false)}
             aria-label="Close menu"
           />
-          <aside className="absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col bg-[var(--surface)] shadow-[var(--shadow-lift)]">
+          <aside className="absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col border-r border-[var(--border)] bg-[var(--surface)]">
             <div className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--border)] px-4">
               <Logo href="/dashboard" />
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setMobileOpen(false)}
+                iconOnly
+                leadingIcon={X}
                 aria-label="Close menu"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              />
             </div>
             <SidebarPanel
               user={user}

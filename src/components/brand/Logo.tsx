@@ -6,7 +6,7 @@ export function LogoMark({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--accent)] shadow-[0_8px_20px_rgba(15,118,110,0.35)]",
+        "relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--ink)]",
         className,
       )}
       aria-hidden
@@ -18,19 +18,12 @@ export function LogoMark({ className }: { className?: string }) {
         xmlns="http://www.w3.org/2000/svg"
       >
         <path
-          d="M6 22V10l5 8 5-12 5 12 5-8v12"
+          d="M8 18v-4M12 22V10M16 20V12M20 23V9M24 18v-4"
           stroke="currentColor"
           strokeWidth="2.2"
           strokeLinecap="round"
-          strokeLinejoin="round"
         />
-        <path
-          d="M10 24h12"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          opacity="0.55"
-        />
+        <circle cx="26" cy="8" r="2.2" fill="var(--accent)" />
       </svg>
     </span>
   );
@@ -52,7 +45,7 @@ export function Logo({
     >
       <LogoMark />
       {showWordmark ? (
-        <span className="font-[family-name:var(--font-display)] text-lg tracking-tight text-[var(--ink)]">
+        <span className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight text-[var(--ink)]">
           {APP_NAME}
         </span>
       ) : null}

@@ -18,7 +18,7 @@ export const createInterviewSchema = z.object({
     z.string().trim().email().optional(),
   ),
   difficulty: z.enum(["junior", "mid", "senior"]),
-  durationMinutes: z.coerce.number().int().min(10).max(60),
+  durationMinutes: z.coerce.number().int().min(5).max(60),
 });
 
 export const turnSchema = z.object({

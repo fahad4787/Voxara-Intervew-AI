@@ -16,7 +16,7 @@ export function Progress({
       )}
     >
       <div
-        className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
+        className="h-full rounded-full bg-[var(--accent)]"
         style={{ width: `${clamped}%` }}
       />
     </div>
@@ -57,7 +57,6 @@ export function ScoreRing({
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          className="transition-all duration-700"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">

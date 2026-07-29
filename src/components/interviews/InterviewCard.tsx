@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowUpRight, Copy, Check, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { InterviewSession } from "@/types/interview";
@@ -45,7 +44,7 @@ export function InterviewCard({
 
   return (
     <>
-      <Card className="transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)]">
+      <Card className="hover:border-[var(--ink-faint)]">
         <CardContent className="space-y-4 pt-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -93,23 +92,19 @@ export function InterviewCard({
           <div className="flex items-center justify-end gap-2">
             {onDelete ? (
               <Button
-                variant="ghost"
+                variant="danger"
                 size="sm"
                 onClick={() => setConfirmOpen(true)}
                 disabled={deleting}
+                leadingIcon={Trash2}
                 aria-label={`Delete ${interview.title}`}
-                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
               >
-                <Trash2 className="h-4 w-4" />
                 Delete
               </Button>
             ) : null}
-            <Link href={`/interviews/${interview.id}`}>
-              <Button variant="soft" size="sm">
-                Open
-                <ArrowUpRight className="h-4 w-4" />
-              </Button>
-            </Link>
+            <Button href={`/interviews/${interview.id}`} variant="soft" size="sm" icon={ArrowUpRight}>
+              Open
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -146,13 +141,12 @@ export function InviteLink({ token }: { token: string }) {
       <code className="flex-1 truncate rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5 text-xs text-[var(--ink-muted)]">
         {url}
       </code>
-      <Button variant="secondary" size="sm" onClick={() => void copy()}>
-        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+      <Button variant="secondary" size="sm" onClick={() => void copy()} leadingIcon={copied ? Check : Copy}>
         {copied ? "Copied" : "Copy invite"}
       </Button>
-      <Link href={`/interview/${token}`} target="_blank">
-        <Button size="sm">Open room</Button>
-      </Link>
+      <Button href={`/interview/${token}`} size="sm" target="_blank" rel="noreferrer">
+        Open room
+      </Button>
     </div>
   );
 }

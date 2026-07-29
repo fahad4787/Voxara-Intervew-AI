@@ -79,12 +79,8 @@ export default function DashboardPage() {
       ) : (
         <>
           <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {stats.map((stat, index) => (
-              <Card
-                key={stat.label}
-                className="animate-float-in"
-                style={{ animationDelay: `${index * 60}ms` }}
-              >
+            {stats.map((stat) => (
+              <Card key={stat.label}>
                 <CardContent className="flex items-start justify-between gap-3 pt-5">
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">
@@ -148,11 +144,9 @@ export default function DashboardPage() {
                     interview rooms.
                   </p>
                 </div>
-                <Link href="/interviews">
-                  <Button variant="secondary" size="sm">
-                    Open interviews
-                  </Button>
-                </Link>
+                <Button href="/interviews" variant="secondary" size="sm">
+                  Open interviews
+                </Button>
               </CardContent>
             </Card>
           ) : null}
