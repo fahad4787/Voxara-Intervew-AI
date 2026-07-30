@@ -2,6 +2,7 @@ export const APP_NAME = "Voxara";
 export const APP_TAGLINE = "Voice-first AI interviews";
 export const APP_DESCRIPTION =
   "Paste a job description. Ava asks out loud, listens live, and leaves you a scorecard on what was said — not how polished the accent sounded.";
+export const APP_CREATOR = "Created by Fahad — Fixelcloud";
 
 export const AUTH_HIGHLIGHTS = [
   "Interview plans drafted from your job description",

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, use, useState } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, ChevronLeft, RefreshCw, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -41,6 +41,8 @@ function InterviewDetailContent({ params }: Params) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const showThanks = searchParams.get("thanks") === "1";
+  const invited = searchParams.get("invited") === "1";
+  const inviteFailed = searchParams.get("invite") === "failed";
   const { id } = use(params);
   const { interview, loading, error, removeInterview, updateInterview } =
     useInterview(id);
@@ -49,6 +51,21 @@ function InterviewDetailContent({ params }: Params) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [rescoring, setRescoring] = useState(false);
   const [rescoreError, setRescoreError] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!inviteFailed) return;
+    const key = `invite-error:${id}`;
+    const message = sessionStorage.getItem(key);
+    if (message) {
+      setInviteError(message);
+      sessionStorage.removeItem(key);
+    } else {
+      setInviteError(
+        "Interview created, but the invite email could not be sent.",
+      );
+    }
+  }, [inviteFailed, id]);
 
   const handleConfirmDelete = async () => {
     if (!interview) return;
@@ -140,6 +157,16 @@ function InterviewDetailContent({ params }: Params) {
           </InlineAlert>
         ) : null}
 
+        {invited ? (
+          <InlineAlert tone="success" className="mb-6">
+            Invite emailed to {interview.candidateEmail || "the candidate"}.
+          </InlineAlert>
+        ) : null}
+
+        {inviteError ? (
+          <InlineAlert className="mb-6">{inviteError}</InlineAlert>
+        ) : null}
+
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <Link
@@ -207,7 +234,11 @@ function InterviewDetailContent({ params }: Params) {
                   <p className="mb-2 text-sm font-medium text-[var(--ink)]">
                     Candidate invite
                   </p>
-                  <InviteLink token={interview.token} />
+                  <InviteLink
+                    token={interview.token}
+                    interviewId={interview.id}
+                    candidateEmail={interview.candidateEmail}
+                  />
                 </div>
               </PanelBody>
             </Panel>

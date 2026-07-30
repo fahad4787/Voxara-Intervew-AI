@@ -12,11 +12,7 @@ export const createInterviewSchema = z.object({
     )
     .max(8000),
   candidateName: z.string().trim().min(2).max(80),
-  candidateEmail: z.preprocess(
-    (value) =>
-      value === "" || value === null || value === undefined ? undefined : value,
-    z.string().trim().email().optional(),
-  ),
+  candidateEmail: z.string().trim().email().max(120),
   difficulty: z.enum(["junior", "mid", "senior"]),
   durationMinutes: z.coerce.number().int().min(5).max(60),
 });

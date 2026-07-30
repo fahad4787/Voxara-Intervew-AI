@@ -35,6 +35,14 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: `${APP_NAME} · ${APP_TAGLINE}`,
   description: APP_DESCRIPTION,
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  ),
+  icons: {
+    icon: [{ url: "/icon", type: "image/png" }],
+    shortcut: "/icon",
+    apple: "/apple-icon",
+  },
 };
 
 export default function RootLayout({

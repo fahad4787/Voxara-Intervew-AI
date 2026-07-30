@@ -28,10 +28,17 @@ function base64ToArrayBuffer(base64: string) {
   return bytes.buffer;
 }
 
+/**
+ * Full-session mix recorder.
+ * - Mic → gain → dest (gain ducks while Ava speaks to avoid speaker echo loops)
+ * - Ava TTS → speakers + dest (digital mix only; soft acks stay speakers-only)
+ * - MediaRecorder records one continuous blob (no 1s timeslice)
+ */
 export function useSessionRecorder() {
   const ctxRef = useRef<AudioContext | null>(null);
   const destRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const micGainRef = useRef<GainNode | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const mimeRef = useRef("");
@@ -56,6 +63,16 @@ export function useSessionRecorder() {
     return ctxRef.current;
   }, []);
 
+  const setMicOpen = useCallback((open: boolean) => {
+    const gain = micGainRef.current;
+    const ctx = ctxRef.current;
+    if (!gain || !ctx) return;
+    const now = ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    // Soft ramp avoids clicks; keep a tiny floor so the graph stays live.
+    gain.gain.setTargetAtTime(open ? 1 : 0.02, now, 0.03);
+  }, []);
+
   const start = useCallback(
     async (micStream: MediaStream | null) => {
       if (!micStream || recorderRef.current) return false;
@@ -67,24 +84,34 @@ export function useSessionRecorder() {
         if (audioTracks.length === 0) return false;
 
         micSourceRef.current?.disconnect();
+        micGainRef.current?.disconnect();
+
         const micSource = ctx.createMediaStreamSource(
           new MediaStream(audioTracks),
         );
-        micSource.connect(dest);
+        const micGain = ctx.createGain();
+        micGain.gain.value = 1;
+        micSource.connect(micGain);
+        micGain.connect(dest);
         micSourceRef.current = micSource;
+        micGainRef.current = micGain;
 
         chunksRef.current = [];
         const mimeType = pickMimeType();
         mimeRef.current = mimeType;
         const recorder = mimeType
-          ? new MediaRecorder(dest.stream, { mimeType })
+          ? new MediaRecorder(dest.stream, {
+              mimeType,
+              audioBitsPerSecond: 128000,
+            })
           : new MediaRecorder(dest.stream);
 
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) chunksRef.current.push(event.data);
         };
         recorderRef.current = recorder;
-        recorder.start(1000);
+        // No timeslice — one continuous WebM avoids ~1s cluster stutter on playback.
+        recorder.start();
         setRecording(true);
         return true;
       } catch (error) {
@@ -104,8 +131,9 @@ export function useSessionRecorder() {
       // already stopped
     }
     ttsSourceRef.current = null;
+    setMicOpen(true);
     setSpeaking(false);
-  }, []);
+  }, [setMicOpen]);
 
   const playBase64Mp3 = useCallback(
     async (base64: string, options?: { soft?: boolean }) => {
@@ -121,8 +149,14 @@ export function useSessionRecorder() {
         );
         const source = ctx.createBufferSource();
         source.buffer = buffer;
+        // Always play to speakers.
         source.connect(ctx.destination);
-        if (dest) source.connect(dest);
+        // Soft listening acks stay speakers-only so they don't layer into the file.
+        // Full Ava lines go into the mix digitally; mic is ducked to avoid echo loops.
+        if (dest && !soft) {
+          source.connect(dest);
+          setMicOpen(false);
+        }
         ttsSourceRef.current = source;
         if (!soft) setSpeaking(true);
 
@@ -130,14 +164,20 @@ export function useSessionRecorder() {
           source.onended = () => {
             if (ttsSourceRef.current === source) {
               ttsSourceRef.current = null;
-              if (!soft) setSpeaking(false);
+              if (!soft) {
+                setMicOpen(true);
+                setSpeaking(false);
+              }
             }
             resolve();
           };
           try {
             source.start(0);
           } catch (error) {
-            if (!soft) setSpeaking(false);
+            if (!soft) {
+              setMicOpen(true);
+              setSpeaking(false);
+            }
             reject(error);
           }
         });
@@ -145,21 +185,30 @@ export function useSessionRecorder() {
         if (!soft) setSpeaking(false);
         const url = `data:audio/mpeg;base64,${base64}`;
         const audio = new Audio(url);
-        if (!soft) setSpeaking(true);
+        if (!soft) {
+          setMicOpen(false);
+          setSpeaking(true);
+        }
         await new Promise<void>((resolve, reject) => {
           audio.onended = () => {
-            if (!soft) setSpeaking(false);
+            if (!soft) {
+              setMicOpen(true);
+              setSpeaking(false);
+            }
             resolve();
           };
           audio.onerror = () => {
-            if (!soft) setSpeaking(false);
+            if (!soft) {
+              setMicOpen(true);
+              setSpeaking(false);
+            }
             reject(new Error("Failed to play audio"));
           };
           void audio.play().catch(reject);
         });
       }
     },
-    [ensureContext, stopPlayback],
+    [ensureContext, setMicOpen, stopPlayback],
   );
 
   const stop = useCallback(async (): Promise<Blob | null> => {
@@ -168,6 +217,8 @@ export function useSessionRecorder() {
     const recorder = recorderRef.current;
     micSourceRef.current?.disconnect();
     micSourceRef.current = null;
+    micGainRef.current?.disconnect();
+    micGainRef.current = null;
 
     if (!recorder || recorder.state === "inactive") {
       recorderRef.current = null;
@@ -187,7 +238,17 @@ export function useSessionRecorder() {
         resolve(next);
       };
       try {
-        recorder.stop();
+        // Flush any buffered data then stop for a clean single blob.
+        if (recorder.state === "recording") {
+          try {
+            recorder.requestData();
+          } catch {
+            // optional
+          }
+          recorder.stop();
+        } else {
+          recorder.stop();
+        }
       } catch {
         recorderRef.current = null;
         resolve(null);

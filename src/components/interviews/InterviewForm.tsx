@@ -17,7 +17,14 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/utils/cn";
 
-type CreateInterviewResponse = InterviewSession & { persisted?: boolean };
+type CreateInterviewResponse = InterviewSession & {
+  persisted?: boolean;
+  inviteEmail?: {
+    sent: boolean;
+    skipped?: boolean;
+    message?: string;
+  };
+};
 
 export function InterviewForm({
   onCancel,
@@ -51,13 +58,27 @@ export function InterviewForm({
         body: JSON.stringify(form),
       });
 
-      const { persisted, ...session } = result;
+      const { persisted, inviteEmail, ...session } = result;
       if (!persisted) {
         await saveInterviewClient(session);
       }
 
       onSuccess?.(session);
-      router.push(`/interviews/${session.id}`);
+
+      const params = new URLSearchParams();
+      if (inviteEmail?.sent) params.set("invited", "1");
+      else if (inviteEmail && !inviteEmail.sent) {
+        params.set("invite", "failed");
+        if (inviteEmail.message) {
+          sessionStorage.setItem(
+            `invite-error:${session.id}`,
+            inviteEmail.message,
+          );
+        }
+      }
+
+      const qs = params.toString();
+      router.push(`/interviews/${session.id}${qs ? `?${qs}` : ""}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create interview");
@@ -87,7 +108,7 @@ export function InterviewForm({
           required
         />
         <Input
-          label="Candidate email (optional)"
+          label="Candidate email"
           name="candidateEmail"
           type="email"
           placeholder="alex@email.com"
@@ -95,6 +116,8 @@ export function InterviewForm({
           onChange={(e) =>
             setForm((f) => ({ ...f, candidateEmail: e.target.value }))
           }
+          required
+          hint="We’ll email them the room link — no login required."
         />
         <Select
           label="Difficulty"

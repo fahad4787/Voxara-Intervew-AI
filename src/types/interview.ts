@@ -93,7 +93,7 @@ export interface CreateInterviewInput {
   title: string;
   jobDescription: string;
   candidateName: string;
-  candidateEmail?: string;
+  candidateEmail: string;
   difficulty: InterviewDifficulty;
   durationMinutes: number;
   ownerId?: string;

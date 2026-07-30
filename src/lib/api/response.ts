@@ -42,10 +42,31 @@ export function fail(error: unknown) {
   }
 
   console.error(error);
+
+  const message =
+    error instanceof Error && error.message
+      ? error.message
+      : "Internal server error";
+
+  // Surface setup / provider errors so Hostinger runtime issues are visible in UI.
+  const lower = message.toLowerCase();
+  const setupRelated =
+    lower.includes("firebase") ||
+    lower.includes("openai") ||
+    lower.includes("api key") ||
+    lower.includes("service account") ||
+    lower.includes("resend") ||
+    lower.includes("missing") ||
+    lower.includes("invalid json") ||
+    lower.includes("private_key");
+
   return NextResponse.json(
     {
       success: false,
-      error: { message: "Internal server error", code: "INTERNAL" },
+      error: {
+        message: setupRelated ? message : "Internal server error",
+        code: "INTERNAL",
+      },
     },
     { status: 500 },
   );

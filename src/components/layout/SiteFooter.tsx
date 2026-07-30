@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { Logo } from "@/components/brand/Logo";
-import { APP_NAME, APP_TAGLINE } from "@/lib/utils/constants";
+import { APP_CREATOR, APP_NAME, APP_TAGLINE } from "@/lib/utils/constants";
+
 
 /** Server footer — no client auth JS on the landing page. */
 export function SiteFooter() {
@@ -18,6 +19,10 @@ export function SiteFooter() {
           </Link>
           <p className="text-[var(--ink-faint)]">
             © {new Date().getFullYear()} {APP_NAME}
+            <span className="mx-2 text-[var(--border-strong)]" aria-hidden>
+              ·
+            </span>
+            {APP_CREATOR}
           </p>
         </div>
       </Container>

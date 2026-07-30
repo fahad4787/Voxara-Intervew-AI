@@ -4,6 +4,7 @@ import { Logo } from "@/components/brand/Logo";
 import { RecBadge, WaveformBars } from "@/components/marketing/HeroWaveform";
 import { BodyText, DisplayTitle, Eyebrow } from "@/components/ui/Typography";
 import {
+  APP_CREATOR,
   APP_NAME,
   APP_TAGLINE,
   AUTH_HIGHLIGHTS,
@@ -65,6 +66,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
           <p className="text-xs text-[var(--ink-faint)]">
             © {new Date().getFullYear()} {APP_NAME}
+            <span className="mx-1.5 opacity-50" aria-hidden>
+              ·
+            </span>
+            {APP_CREATOR}
           </p>
         </div>
       </aside>

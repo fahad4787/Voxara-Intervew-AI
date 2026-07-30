@@ -6,6 +6,7 @@ import {
   buildInterviewSession,
   interviewsRepository,
 } from "@/lib/db/interviews.repository";
+import { sendInterviewInvite } from "@/lib/email/send";
 import { isAdminConfigured } from "@/lib/firebase/admin";
 import { generateInterviewPlan } from "@/lib/openai/interview-engine";
 
@@ -36,13 +37,47 @@ export async function POST(request: NextRequest) {
       plan,
     );
 
+    let persisted = false;
     if (isAdminConfigured()) {
       const { interviewStore } = await import("@/lib/db/store");
       await interviewStore.create(session);
-      return ok({ ...session, persisted: true as const }, { status: 201 });
+      persisted = true;
     }
 
-    return ok({ ...session, persisted: false as const }, { status: 201 });
+    let inviteEmail:
+      | { sent: true }
+      | { sent: false; skipped?: boolean; message: string }
+      | undefined;
+
+    if (session.candidateEmail) {
+      const result = await sendInterviewInvite({
+        to: session.candidateEmail,
+        candidateName: session.candidateName,
+        title: session.title,
+        token: session.token,
+        durationMinutes: session.durationMinutes,
+      });
+
+      if (result.sent) {
+        inviteEmail = { sent: true };
+      } else if ("skipped" in result && result.skipped) {
+        inviteEmail = {
+          sent: false,
+          skipped: true,
+          message: result.reason,
+        };
+      } else {
+        inviteEmail = {
+          sent: false,
+          message: "error" in result ? result.error : "Failed to send invite",
+        };
+      }
+    }
+
+    return ok(
+      { ...session, persisted, inviteEmail },
+      { status: 201 },
+    );
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return fail(new ApiError(401, "Sign in required", "UNAUTHORIZED"));
