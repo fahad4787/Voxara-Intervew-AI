@@ -51,3 +51,6 @@ firestore-debug.log
 ui-debug.log
 *.log
 
+
+FIREBASE_SERVICE_ACCOUNT_KEY_BASE64.txt
+sa-b64.txt

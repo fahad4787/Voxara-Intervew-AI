@@ -55,7 +55,11 @@ function parseServiceAccountJson(raw: string): ServiceAccountJson {
 }
 
 function getServiceAccount(): ServiceAccountJson | null {
-  const base64 = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_BASE64?.trim();
+  const base64 = (
+    process.env.FIREBASE_SA_B64?.trim() ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_BASE64?.trim() ||
+    ""
+  );
   if (base64) {
     try {
       const decoded = Buffer.from(
@@ -65,7 +69,7 @@ function getServiceAccount(): ServiceAccountJson | null {
       return parseServiceAccountJson(decoded);
     } catch (error) {
       throw new Error(
-        `FIREBASE_SERVICE_ACCOUNT_KEY_BASE64 is invalid (${
+        `FIREBASE_SA_B64 is invalid (${
           error instanceof Error ? error.message : "decode failed"
         }).`,
       );
@@ -83,8 +87,9 @@ export function isAdminConfigured() {
   } catch {
     // Present but unparseable — treat as configured so create surfaces the error.
     return Boolean(
-      process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim() ||
-        process.env.FIREBASE_SERVICE_ACCOUNT_KEY_BASE64?.trim(),
+      process.env.FIREBASE_SA_B64?.trim() ||
+        process.env.FIREBASE_SERVICE_ACCOUNT_KEY_BASE64?.trim() ||
+        process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim(),
     );
   }
 }
@@ -97,7 +102,7 @@ function initAdminApp(): App {
   const serviceAccount = getServiceAccount();
   if (!serviceAccount) {
     throw new Error(
-      "Missing FIREBASE_SERVICE_ACCOUNT_KEY (or FIREBASE_SERVICE_ACCOUNT_KEY_BASE64).",
+      "Missing FIREBASE_SA_B64 (or FIREBASE_SERVICE_ACCOUNT_KEY).",
     );
   }
 
