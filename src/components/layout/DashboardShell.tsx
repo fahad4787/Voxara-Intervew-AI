@@ -68,15 +68,14 @@ function NavLink({
     <Link
       href={href}
       onClick={onNavigate}
-      className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-        active
-          ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-          : "text-[var(--ink-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]",
-      )}
+      aria-current={active ? "page" : undefined}
+      className={cn("sidebar-nav-link", active && "is-active")}
     >
-      <Icon className="h-4 w-4 shrink-0" />
-      {label}
+      <span className="sidebar-nav-icon" aria-hidden>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="sidebar-nav-label">{label}</span>
+      <span className="sidebar-nav-indicator" aria-hidden />
     </Link>
   );
 }
@@ -107,27 +106,28 @@ function SidebarPanel({
         </div>
       ) : null}
 
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-5">
+      <nav className="sidebar-nav flex flex-1 flex-col gap-1.5 overflow-y-auto px-3 py-5">
         {primaryNav.map((item) => (
           <NavLink key={item.href} {...item} onNavigate={onNavigate} />
         ))}
-        {user.role === "superadmin"
-          ? adminNav.map((item) => (
+        {user.role === "superadmin" ? (
+          <>
+            <div className="sidebar-nav-divider" role="separator" />
+            {adminNav.map((item) => (
               <NavLink key={item.href} {...item} onNavigate={onNavigate} />
-            ))
-          : null}
+            ))}
+          </>
+        ) : null}
       </nav>
 
       <div className="shrink-0 border-t border-[var(--border)] px-3 py-3">
-        <div className="flex items-center gap-2 px-1 py-1.5">
+        <div className="flex items-center gap-1.5">
           <Link
             href="/profile"
             onClick={onNavigate}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--surface-muted)]"
+            className="sidebar-user-chip"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-semibold text-white">
-              {initials}
-            </span>
+            <span className="sidebar-user-avatar">{initials}</span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-[var(--ink)]">
                 {user.name}
@@ -144,6 +144,7 @@ function SidebarPanel({
             leadingIcon={LogOut}
             onClick={onSignOut}
             aria-label="Sign out"
+            className="sidebar-signout"
           />
         </div>
       </div>
