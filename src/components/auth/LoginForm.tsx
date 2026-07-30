@@ -9,7 +9,7 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Input } from "@/components/ui/Input";
 import { PageSpinner } from "@/components/ui/PageSpinner";
 import { PasswordInput } from "@/components/ui/PasswordInput";
-import { BodyText, DisplayTitle } from "@/components/ui/Typography";
+import { BodyText, DisplayTitle, Eyebrow } from "@/components/ui/Typography";
 import { useSetupStatus } from "@/hooks/useSetupStatus";
 
 export function LoginForm() {
@@ -44,9 +44,12 @@ export function LoginForm() {
   return (
     <div className="space-y-6">
       <div>
-        <DisplayTitle size="md">Welcome back</DisplayTitle>
+        <Eyebrow>Admin portal</Eyebrow>
+        <DisplayTitle size="md" className="mt-3">
+          Welcome back
+        </DisplayTitle>
         <BodyText className="mt-2 text-sm">
-          Sign in to the admin portal to manage interviews and reports.
+          Sign in to manage interviews, invite links, and scorecards.
         </BodyText>
       </div>
 

@@ -3,9 +3,19 @@ import { HeroWaveform, RecBadge } from "@/components/marketing/HeroWaveform";
 import { InterviewPreview } from "@/components/marketing/InterviewPreview";
 import { MarketingCtas } from "@/components/marketing/MarketingCtas";
 import { MarketingScorecard } from "@/components/marketing/MarketingScorecard";
+import {
+  SignalRings,
+  VoiceParticles,
+} from "@/components/marketing/VoiceParticles";
 import { Badge } from "@/components/ui/Badge";
 import { BodyText, DisplayTitle } from "@/components/ui/Typography";
-import { MARKETING_FEATURES, MARKETING_STEPS } from "@/lib/marketing/content";
+import {
+  MARKETING_AUDIENCE,
+  MARKETING_FEATURES,
+  MARKETING_SCORE_DIMS,
+  MARKETING_STEPS,
+  MARKETING_TRUST,
+} from "@/lib/marketing/content";
 import { APP_DESCRIPTION, APP_NAME } from "@/lib/utils/constants";
 
 export default function HomePage() {
@@ -14,7 +24,11 @@ export default function HomePage() {
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="pointer-events-none absolute inset-0 hero-atmosphere" />
         <div className="pointer-events-none absolute inset-0 hero-grille" />
-        <div className="relative mx-auto w-full max-w-6xl px-4 pb-12 pt-10 sm:px-6 sm:pb-16 sm:pt-14">
+        <span className="auth-orb auth-orb--a opacity-70" aria-hidden />
+        <span className="auth-orb auth-orb--b opacity-60" aria-hidden />
+        <VoiceParticles />
+        <SignalRings className="hidden sm:block" />
+        <div className="relative z-[1] mx-auto w-full max-w-6xl px-4 pb-12 pt-10 sm:px-6 sm:pb-16 sm:pt-14">
           <div className="grid items-end gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-12">
             <div>
               <RecBadge className="mb-4 reveal-on-load" />
@@ -28,7 +42,7 @@ export default function HomePage() {
                 {APP_DESCRIPTION}
               </BodyText>
               <MarketingCtas className="reveal-on-load reveal-delay-4 mt-6 flex flex-wrap items-center gap-3" />
-              <div className="reveal-on-load reveal-delay-3 mt-10">
+              <div className="reveal-on-load reveal-delay-3 relative mt-10">
                 <HeroWaveform />
                 <p className="mt-3 font-[family-name:var(--font-data)] text-[11px] uppercase tracking-[0.18em] text-[var(--ink-faint)]">
                   Ava speaking · candidate listening
@@ -69,6 +83,28 @@ export default function HomePage() {
       </Section>
 
       <Section>
+        <SectionHeader
+          eyebrow="Who it's for"
+          title="Same bar when the calendar fills up."
+          description="Voxara fits the people who run first conversations — and the people who decide after."
+          className="reveal"
+        />
+        <div className="grid gap-8 border-y border-[var(--border)] py-8 md:grid-cols-3 md:gap-6">
+          {MARKETING_AUDIENCE.map((item, index) => (
+            <div
+              key={item.title}
+              className={`reveal reveal-delay-${index + 1}`}
+            >
+              <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold text-[var(--ink)]">
+                {item.title}
+              </h3>
+              <BodyText className="mt-2 text-sm">{item.description}</BodyText>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section tone="muted">
         <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-12">
           <div className="reveal">
             <SectionHeader
@@ -80,6 +116,28 @@ export default function HomePage() {
           </div>
           <MarketingScorecard className="reveal reveal-delay-2" />
         </div>
+      </Section>
+
+      <Section>
+        <SectionHeader
+          eyebrow="What gets scored"
+          title="Six reads on the call — not a single black-box number."
+          description="Each dimension maps to something you already argue about in debriefs."
+          className="reveal"
+        />
+        <ul className="grid gap-x-8 gap-y-6 border-y border-[var(--border)] py-8 sm:grid-cols-2 lg:grid-cols-3">
+          {MARKETING_SCORE_DIMS.map((dim, index) => (
+            <li
+              key={dim.title}
+              className={`reveal reveal-delay-${(index % 3) + 1}`}
+            >
+              <p className="font-[family-name:var(--font-data)] text-[11px] uppercase tracking-[0.16em] text-[var(--accent-strong)]">
+                {dim.title}
+              </p>
+              <BodyText className="mt-2 text-sm">{dim.description}</BodyText>
+            </li>
+          ))}
+        </ul>
       </Section>
 
       <Section tone="muted">
@@ -106,8 +164,28 @@ export default function HomePage() {
       </Section>
 
       <Section>
+        <div className="reveal grid gap-6 border-y border-[var(--border)] py-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-end lg:gap-12">
+          <div>
+            <SectionHeader
+              eyebrow={MARKETING_TRUST.eyebrow}
+              title={MARKETING_TRUST.title}
+              description={MARKETING_TRUST.description}
+              className="mb-0"
+            />
+          </div>
+          <BodyText className="max-w-md text-sm text-[var(--ink-muted)] lg:text-right">
+            Recording stays in your workflow. Scores cite the transcript. Accent
+            and ASR noise are not the story — what they said is.
+          </BodyText>
+        </div>
+      </Section>
+
+      <Section>
         <div className="reveal relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-6 py-12 sm:px-12 sm:py-14">
           <div className="pointer-events-none absolute inset-0 auth-panel" />
+          <span className="auth-orb auth-orb--a" aria-hidden />
+          <span className="auth-orb auth-orb--b" aria-hidden />
+          <VoiceParticles density="soft" />
           <div className="relative max-w-xl">
             <RecBadge className="mb-5" />
             <DisplayTitle as="h2" size="md">

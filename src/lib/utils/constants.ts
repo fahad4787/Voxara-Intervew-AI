@@ -4,9 +4,10 @@ export const APP_DESCRIPTION =
   "Paste a job description. Ava asks out loud, listens live, and leaves you a scorecard on what was said — not how polished the accent sounded.";
 
 export const AUTH_HIGHLIGHTS = [
-  "JD-based interview plans in minutes",
-  "Voice questions with live follow-ups",
-  "Scored reports your team can trust",
+  "Interview plans drafted from your job description",
+  "Voice questions with adaptive live follow-ups",
+  "Scorecards with transcript evidence, not vibes",
+  "One invite link — browser mic, camera, consent",
 ] as const;
 
 export const FILLER_WORDS = [

@@ -21,7 +21,8 @@ service cloud.firestore {
         && data.name.size() >= 1
         && data.email is string
         && data.createdAt is string
-        && data.updatedAt is string;
+        && data.updatedAt is string
+        && (!('role' in data) || data.role in ['superadmin', 'admin']);
     }
 
     function preservesInterviewIdentity() {
@@ -41,7 +42,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId);
+      // Portal admins share one tenant — any signed-in admin can see the roster.
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated()
         && request.auth.uid == userId
         && isValidUser(request.resource.data)

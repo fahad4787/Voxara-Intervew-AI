@@ -109,3 +109,55 @@ export const MARKETING_STEPS = [
       "Review the scorecard: what they said, how clearly, with evidence quotes.",
   },
 ] as const;
+
+export const MARKETING_AUDIENCE = [
+  {
+    title: "Recruiters",
+    description:
+      "Screen more candidates without cloning yourself on every first call.",
+  },
+  {
+    title: "Hiring managers",
+    description:
+      "Walk into debriefs with quotes and scores — not fuzzy memory of the chat.",
+  },
+  {
+    title: "Growing teams",
+    description:
+      "Keep the bar consistent when volume goes up and interviewer bandwidth does not.",
+  },
+] as const;
+
+export const MARKETING_SCORE_DIMS = [
+  {
+    title: "Content",
+    description: "Did they actually answer the role — with specifics?",
+  },
+  {
+    title: "Communication",
+    description: "Was the answer complete and easy to follow out loud?",
+  },
+  {
+    title: "Confidence",
+    description: "Steady delivery vs. hedging through every turn.",
+  },
+  {
+    title: "Grammar",
+    description: "Ideas land clearly — not accent or ASR typos.",
+  },
+  {
+    title: "Clarity",
+    description: "Thread holds across answers; points finish.",
+  },
+  {
+    title: "Overall",
+    description: "One number your team can discuss in the hiring meeting.",
+  },
+] as const;
+
+export const MARKETING_TRUST = {
+  eyebrow: "Built for real hiring",
+  title: "Consent first. Evidence after.",
+  description:
+    "Candidates enable mic and camera in the browser, agree to record, then speak. You get transcript-backed scores — not a black-box vibe check.",
+} as const;

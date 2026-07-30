@@ -8,6 +8,8 @@ import {
   LogOut,
   Menu,
   Plus,
+  UserRound,
+  Users,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -25,6 +27,11 @@ import type { AuthUser } from "@/lib/auth/types";
 const primaryNav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/interviews", label: "Interviews", icon: Briefcase },
+  { href: "/profile", label: "Profile", icon: UserRound },
+] as const;
+
+const adminNav = [
+  { href: "/users", label: "Users", icon: Users },
 ] as const;
 
 function isActive(pathname: string, href: string) {
@@ -33,6 +40,12 @@ function isActive(pathname: string, href: string) {
     return (
       pathname === "/interviews" || pathname.startsWith("/interviews/")
     );
+  }
+  if (href === "/users") {
+    return pathname === "/users" || pathname.startsWith("/users/");
+  }
+  if (href === "/profile") {
+    return pathname === "/profile" || pathname.startsWith("/profile/");
   }
   return pathname === href;
 }
@@ -98,21 +111,32 @@ function SidebarPanel({
         {primaryNav.map((item) => (
           <NavLink key={item.href} {...item} onNavigate={onNavigate} />
         ))}
+        {user.role === "superadmin"
+          ? adminNav.map((item) => (
+              <NavLink key={item.href} {...item} onNavigate={onNavigate} />
+            ))
+          : null}
       </nav>
 
       <div className="shrink-0 border-t border-[var(--border)] px-3 py-3">
-        <div className="flex items-center gap-3 px-2 py-1.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-semibold text-white">
-            {initials}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-[var(--ink)]">
-              {user.name}
-            </p>
-            <p className="truncate text-xs text-[var(--ink-muted)]">
-              {user.email}
-            </p>
-          </div>
+        <div className="flex items-center gap-2 px-1 py-1.5">
+          <Link
+            href="/profile"
+            onClick={onNavigate}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--surface-muted)]"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-semibold text-white">
+              {initials}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-[var(--ink)]">
+                {user.name}
+              </p>
+              <p className="truncate text-xs text-[var(--ink-muted)]">
+                {user.email}
+              </p>
+            </div>
+          </Link>
           <Button
             variant="dangerGhost"
             size="sm"
@@ -144,6 +168,8 @@ function DashboardHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
     if (pathname === "/dashboard") return "Overview";
     if (pathname.startsWith("/interviews/")) return "Interview";
     if (pathname.startsWith("/interviews")) return "Interviews";
+    if (pathname.startsWith("/users")) return "Users";
+    if (pathname.startsWith("/profile")) return "Profile";
     return "Dashboard";
   }, [pathname]);
 

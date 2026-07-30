@@ -1,23 +1,24 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Input } from "@/components/ui/Input";
-import { PageSpinner } from "@/components/ui/PageSpinner";
+import { Modal } from "@/components/ui/Modal";
 import { PasswordInput } from "@/components/ui/PasswordInput";
-import { BodyText, DisplayTitle, Eyebrow } from "@/components/ui/Typography";
-import { useSetupStatus } from "@/hooks/useSetupStatus";
+import { apiFetch } from "@/lib/api/client";
+import type { AuthUser } from "@/lib/auth/types";
 import { getPasswordStrength } from "@/lib/utils/password";
-import { APP_NAME } from "@/lib/utils/constants";
 
-export function SignupForm() {
-  const router = useRouter();
-  const { signUp, user, ready } = useAuth();
-  const setup = useSetupStatus();
+export function AddAdminModal({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (admin: AuthUser) => void;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -27,15 +28,17 @@ export function SignupForm() {
     confirmPassword: "",
   });
 
-  useEffect(() => {
-    if (ready && user) router.replace("/dashboard");
-  }, [ready, user, router]);
+  const reset = () => {
+    setForm({ name: "", email: "", password: "", confirmPassword: "" });
+    setError(null);
+    setLoading(false);
+  };
 
-  useEffect(() => {
-    if (setup.ready && setup.setupComplete && !user) {
-      router.replace("/login");
-    }
-  }, [setup.ready, setup.setupComplete, user, router]);
+  const handleClose = () => {
+    if (loading) return;
+    reset();
+    onClose();
+  };
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -53,35 +56,48 @@ export function SignupForm() {
 
     setLoading(true);
     try {
-      await signUp({
-        name: form.name,
-        email: form.email,
-        password: form.password,
+      const admin = await apiFetch<AuthUser>("/api/admins", {
+        method: "POST",
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+        }),
       });
-      router.replace("/dashboard");
+      onCreated(admin);
+      reset();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to create account");
+      setError(err instanceof Error ? err.message : "Unable to create admin");
       setLoading(false);
     }
   };
 
-  if (!ready || user || (setup.ready && setup.setupComplete)) {
-    return <PageSpinner fill={false} className="min-h-40 py-10" />;
-  }
-
   return (
-    <div className="space-y-6">
-      <div>
-        <Eyebrow>One-time setup</Eyebrow>
-        <DisplayTitle size="md" className="mt-3">
-          Create superadmin
-        </DisplayTitle>
-        <BodyText className="mt-2 text-sm">
-          First account for {APP_NAME}. After this, only sign-in is available.
-        </BodyText>
-      </div>
-
-      <form onSubmit={onSubmit} className="space-y-4">
+    <Modal
+      open={open}
+      onClose={handleClose}
+      eyebrow="User management"
+      title="Add admin"
+      description="They can sign in and run interviews. Only you can add or remove admins."
+      className="sm:max-w-md"
+      footer={
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleClose}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" form="add-admin-form" loading={loading} brand>
+            Create admin
+          </Button>
+        </div>
+      }
+    >
+      <form id="add-admin-form" onSubmit={onSubmit} className="space-y-4">
         <Input
           label="Full name"
           name="name"
@@ -102,7 +118,7 @@ export function SignupForm() {
           required
         />
         <PasswordInput
-          label="Password"
+          label="Temporary password"
           name="password"
           autoComplete="new-password"
           placeholder="Create a strong password"
@@ -118,7 +134,7 @@ export function SignupForm() {
           label="Confirm password"
           name="confirmPassword"
           autoComplete="new-password"
-          placeholder="Re-enter your password"
+          placeholder="Re-enter password"
           value={form.confirmPassword}
           onChange={(e) =>
             setForm((f) => ({ ...f, confirmPassword: e.target.value }))
@@ -131,23 +147,8 @@ export function SignupForm() {
           required
           minLength={8}
         />
-
         {error ? <InlineAlert>{error}</InlineAlert> : null}
-
-        <Button type="submit" className="w-full" loading={loading} brand>
-          Create superadmin
-        </Button>
       </form>
-
-      <p className="text-center text-sm text-[var(--ink-muted)]">
-        Already set up?{" "}
-        <Link
-          href="/login"
-          className="font-medium text-[var(--accent-strong)] hover:underline"
-        >
-          Sign in
-        </Link>
-      </p>
-    </div>
+    </Modal>
   );
 }

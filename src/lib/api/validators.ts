@@ -36,3 +36,9 @@ export const completeSchema = z.object({
 export const consentSchema = z.object({
   consentAccepted: z.literal(true),
 });
+
+export const createAdminSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  email: z.string().trim().email().max(120),
+  password: z.string().min(8).max(128),
+});

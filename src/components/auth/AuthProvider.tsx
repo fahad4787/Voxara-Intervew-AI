@@ -11,9 +11,12 @@ import {
 } from "react";
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  updatePassword,
   updateProfile,
 } from "firebase/auth";
 import { getClientAuth } from "@/lib/firebase/client";
@@ -22,6 +25,7 @@ import {
   getUserProfile,
   isClientSetupComplete,
   markClientSetupComplete,
+  updateUserProfileFields,
 } from "@/lib/firebase/users";
 import { markSetupCompleteLocal } from "@/hooks/useSetupStatus";
 import type { AuthUser } from "@/lib/auth/types";
@@ -36,6 +40,14 @@ type AuthContextValue = {
     password: string;
   }) => Promise<AuthUser>;
   signOut: () => Promise<void>;
+  updateProfileDetails: (input: {
+    name: string;
+    company?: string;
+  }) => Promise<AuthUser>;
+  changePassword: (input: {
+    currentPassword: string;
+    newPassword: string;
+  }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -57,6 +69,8 @@ function mapAuthError(error: unknown) {
       return "Enter a valid email address.";
     case "auth/too-many-requests":
       return "Too many attempts. Try again later.";
+    case "auth/requires-recent-login":
+      return "For security, enter your current password and try again.";
     default:
       return error.message || "Authentication failed";
   }
@@ -102,7 +116,12 @@ async function finishAuthSession(input: {
 function sameUser(a: AuthUser | null, b: AuthUser | null) {
   if (a === b) return true;
   if (!a || !b) return false;
-  return a.id === b.id && a.email === b.email && a.name === b.name;
+  return (
+    a.id === b.id &&
+    a.email === b.email &&
+    a.name === b.name &&
+    a.role === b.role
+  );
 }
 
 function fallbackUser(firebaseUser: {
@@ -117,6 +136,7 @@ function fallbackUser(firebaseUser: {
       firebaseUser.email?.split("@")[0] ||
       "Admin",
     email: firebaseUser.email || "",
+    role: "admin",
     createdAt: new Date().toISOString(),
   };
 }
@@ -227,9 +247,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyUser(null);
   }, [applyUser]);
 
+  const updateProfileDetails = useCallback(
+    async ({ name, company }: { name: string; company?: string }) => {
+      const authUser = getClientAuth().currentUser;
+      if (!authUser) throw new Error("Sign in required");
+
+      try {
+        const trimmed = name.trim();
+        await updateProfile(authUser, { displayName: trimmed });
+        const profile = await updateUserProfileFields({
+          uid: authUser.uid,
+          name: trimmed,
+          company,
+        });
+        applyUser(profile);
+        return profile;
+      } catch (error) {
+        throw new Error(mapAuthError(error));
+      }
+    },
+    [applyUser],
+  );
+
+  const changePassword = useCallback(
+    async ({
+      currentPassword,
+      newPassword,
+    }: {
+      currentPassword: string;
+      newPassword: string;
+    }) => {
+      const authUser = getClientAuth().currentUser;
+      if (!authUser?.email) throw new Error("Sign in required");
+
+      try {
+        const credential = EmailAuthProvider.credential(
+          authUser.email,
+          currentPassword,
+        );
+        await reauthenticateWithCredential(authUser, credential);
+        await updatePassword(authUser, newPassword);
+      } catch (error) {
+        const code =
+          error && typeof error === "object" && "code" in error
+            ? String((error as { code: string }).code)
+            : "";
+        if (
+          code === "auth/wrong-password" ||
+          code === "auth/invalid-credential"
+        ) {
+          throw new Error("Current password is incorrect.");
+        }
+        throw new Error(mapAuthError(error));
+      }
+    },
+    [],
+  );
+
   const value = useMemo(
-    () => ({ user, ready, signIn, signUp, signOut }),
-    [user, ready, signIn, signUp, signOut],
+    () => ({
+      user,
+      ready,
+      signIn,
+      signUp,
+      signOut,
+      updateProfileDetails,
+      changePassword,
+    }),
+    [
+      user,
+      ready,
+      signIn,
+      signUp,
+      signOut,
+      updateProfileDetails,
+      changePassword,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
