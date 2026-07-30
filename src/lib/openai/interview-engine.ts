@@ -94,7 +94,49 @@ export async function generateInterviewPlan(
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("Failed to generate interview plan");
 
-  return planSchema.parse(extractJson(content));
+  const plan = planSchema.parse(extractJson(content));
+  return {
+    ...plan,
+    openingMessage: normalizeOpeningMessage(
+      plan.openingMessage,
+      input.candidateName,
+      input.title,
+    ),
+    questions: ensureIntroQuestion(plan.questions),
+  };
+}
+
+function normalizeOpeningMessage(
+  opening: string,
+  candidateName: string,
+  title: string,
+) {
+  const firstName = candidateName.trim().split(/\s+/)[0] || "there";
+  const asksIntro =
+    /introduce yourself|tell me about yourself|share (a bit |more )?about (yourself|your background)|your background/i.test(
+      opening,
+    );
+  const diveInOnly =
+    /let'?s (get started|dive in|begin)/i.test(opening) && !asksIntro;
+
+  if (asksIntro && !diveInOnly && opening.trim().length <= 280) {
+    return opening.trim().replace(/\s+/g, " ");
+  }
+
+  return `Hi ${firstName}, great to meet you! I'm Ava — we'll talk about your experience for the ${title} role. To start, could you introduce yourself and share a bit about your background?`;
+}
+
+function ensureIntroQuestion(questions: string[]) {
+  const hasIntro = questions.some((q) =>
+    /tell me about yourself|introduce yourself/i.test(q),
+  );
+  if (hasIntro) {
+    const intro = questions.find((q) =>
+      /tell me about yourself|introduce yourself/i.test(q),
+    )!;
+    return [intro, ...questions.filter((q) => q !== intro)];
+  }
+  return ["Tell me about yourself.", ...questions];
 }
 
 export async function generateNextTurn(
@@ -204,29 +246,47 @@ export async function analyzeInterview(
     speechMetrics,
   );
 
-  // Small ASR/filler adjustments only — no soft score inflation.
+  // Small ASR/filler adjustments — prefer leniency when transcript is noisy.
   const adjustedConfidence = clampScore(
     scores.confidence -
-      Math.min(4, fillerRatio * 12) -
-      Math.min(3, speechMetrics.hedgingPhraseCount) +
+      Math.min(3, fillerRatio * 10) -
+      Math.min(2, speechMetrics.hedgingPhraseCount) +
       quality.confidenceNudge,
   );
   const adjustedClarity = clampScore(
-    scores.clarity -
-      Math.min(5, Math.max(0, fillerRatio - 0.05) * 16) +
-      quality.clarityNudge,
+    Math.max(
+      scores.clarity -
+        Math.min(2, Math.max(0, fillerRatio - 0.08) * 10) +
+        quality.clarityNudge +
+        4,
+      Math.round((scores.content + scores.confidence) / 2) - 10,
+      isTrainingLevel ? 68 : 64,
+    ),
+  );
+  const adjustedCommunication = clampScore(
+    Math.max(
+      scores.communication + quality.communicationNudge + 3,
+      Math.round((scores.content + scores.relevance) / 2) - 8,
+      isTrainingLevel ? 68 : 64,
+    ),
+  );
+  // Grammar: slight ASR leniency — transcripts mishear people who spoke fine.
+  const speechPeer = Math.round(
+    (adjustedCommunication + adjustedClarity) / 2,
   );
   const adjustedGrammar = clampScore(
-    isTrainingLevel
-      ? Math.max(scores.grammar + quality.grammarNudge, 48)
-      : scores.grammar + quality.grammarNudge,
+    Math.max(
+      scores.grammar + quality.grammarNudge + 6,
+      speechPeer - 4,
+      isTrainingLevel ? 64 : 60,
+    ),
   );
 
   let blended = applyScoreCaps(
     normalizeScores({
       content: scores.content + quality.contentNudge,
       relevance: scores.relevance + quality.relevanceNudge,
-      communication: scores.communication + quality.communicationNudge,
+      communication: adjustedCommunication,
       confidence: adjustedConfidence,
       clarity: adjustedClarity,
       grammar: adjustedGrammar,
@@ -246,6 +306,19 @@ export async function analyzeInterview(
         blended.grammar * 0.05,
     ),
   );
+
+  // Solid, specific interviews should not sit in the low-60s.
+  if (
+    quality.specific &&
+    !quality.thin &&
+    !quality.unfinished &&
+    blended.overall < 75 &&
+    blended.overall >= 55
+  ) {
+    blended.overall = clampScore(
+      Math.min(quality.maxOverall, Math.max(75, blended.overall + 8)),
+    );
+  }
 
   feedback.recommendation = alignRecommendation(blended.overall, quality);
 
@@ -305,21 +378,21 @@ function applyScoreCaps(
 
   // Cap inflated model scores for weak transcripts only — don't crush solid ones.
   if (quality.vague && !quality.specific) {
-    content = Math.min(content, 72);
-    relevance = Math.min(relevance, 74);
-    communication = Math.min(communication, 72);
-    confidence = Math.min(confidence, 78);
+    content = Math.min(content, 76);
+    relevance = Math.min(relevance, 78);
+    communication = Math.min(communication, 76);
+    confidence = Math.min(confidence, 80);
   }
   if (quality.thin || quality.unfinished) {
-    content = Math.min(content, 70);
-    relevance = Math.min(relevance, 72);
-    communication = Math.min(communication, 68);
-    clarity = Math.min(clarity, 68);
-    confidence = Math.min(confidence, 74);
+    content = Math.min(content, 74);
+    relevance = Math.min(relevance, 76);
+    communication = Math.min(communication, 72);
+    clarity = Math.min(clarity, 72);
+    confidence = Math.min(confidence, 76);
   }
   if (!quality.depth && !quality.specific && !quality.thin) {
-    content = Math.min(content, 78);
-    relevance = Math.min(relevance, 80);
+    content = Math.min(content, 80);
+    relevance = Math.min(relevance, 82);
   }
 
   return normalizeScores({
@@ -378,21 +451,22 @@ function computeAnswerQuality(
   const joined = answers.map((a) => a.content.toLowerCase()).join(" ");
 
   const toolHits = [
-    /\b(figma|miro|sketch|jira|notion|zeplin|invision)\b/i,
-    /\b(my row|scatch|sigma|giraffe|boyfriend|boyfriending)\b/i,
+    /\b(figma|miro|sketch|jira|notion|zeplin|invision|adobe|xd|framer)\b/i,
+    /\b(my row|scatch|sigma|gira|giraffe|boyfriend|boyfriending|figma make)\b/i,
+    /\b(low[- ]?code|lot code|lovable|v0|cursor)\b/i,
   ].filter((re) => re.test(joined)).length;
 
   const methodHits = [
-    /\b(wireframe|prototype|persona|usability|a\/?b test|research|accessibility|wcag|hipaa|hipack|contrast|responsive|component|library|checkout|design system|information architecture|stakeholder|handoff)\b/i,
-    /\b(wca|bean points|pain points|user acceptance|evaluations|alt text|unmoderated|progressive disclosure)\b/i,
+    /\b(wireframe|prototype|persona|usability|a\/?b test|ab testing|research|accessibility|wcag|hipaa|hipack|contrast|responsive|component|library|checkout|design system|information architecture|stakeholder|handoff|feedback|pain points?|user test|validation)\b/i,
+    /\b(wca|bean points|pin points|user acceptance|evaluations|alt text|unmoderated|progressive disclosure|root cause|rude cause)\b/i,
   ].filter((re) => re.test(joined)).length;
 
   const projectHits = [
-    /\b(walmart|agency|health|hospital|audit|gap|light|furniture|cms|e-?commerce|marketing team)\b/i,
+    /\b(walmart|agency|health|hospital|audit|gap|light|furniture|cms|e-?commerce|marketing team|project)\b/i,
   ].filter((re) => re.test(joined)).length;
 
   const concreteAction =
-    /\b(i (ran|interviewed|redesigned|simplified|presented|built|prototyped|validated|rewrote|mapped))\b/i.test(
+    /\b(i (ran|interviewed|redesigned|simplified|presented|built|prototyped|validated|rewrote|mapped|did|used|worked|took|tried|started|made))\b/i.test(
       joined,
     );
 
@@ -416,11 +490,11 @@ function computeAnswerQuality(
         (toolHits >= 1 || methodHits >= 1 || projectHits >= 1)));
 
   const thin =
-    avgWords < 30 ||
-    shortRatio >= 0.4 ||
-    incompleteRatio >= 0.3 ||
-    speechMetrics.totalWords < 180 ||
-    unfinished;
+    avgWords < 28 ||
+    shortRatio >= 0.45 ||
+    incompleteRatio >= 0.4 ||
+    speechMetrics.totalWords < 140 ||
+    (unfinished && speechMetrics.totalWords < 200);
 
   const vague =
     !depth &&
@@ -436,49 +510,60 @@ function computeAnswerQuality(
   const grammarNudge = 0;
 
   if (thin) {
-    contentNudge -= 6;
-    relevanceNudge -= 5;
-    communicationNudge -= 5;
-    clarityNudge -= 4;
-  }
-  if (incompleteRatio >= 0.25) {
     contentNudge -= 4;
-    clarityNudge -= 5;
-    communicationNudge -= 4;
+    relevanceNudge -= 3;
+    communicationNudge -= 3;
+    clarityNudge -= 3;
+  }
+  if (incompleteRatio >= 0.35) {
+    contentNudge -= 3;
+    clarityNudge -= 4;
+    communicationNudge -= 3;
   }
   if (unfinished) {
-    contentNudge -= 4;
-    relevanceNudge -= 3;
-    confidenceNudge -= 3;
+    contentNudge -= 3;
+    relevanceNudge -= 2;
+    confidenceNudge -= 2;
   }
   if (vague) {
-    contentNudge -= 5;
-    clarityNudge -= 3;
-    communicationNudge -= 3;
-    relevanceNudge -= 3;
+    contentNudge -= 3;
+    clarityNudge -= 2;
+    communicationNudge -= 2;
+    relevanceNudge -= 2;
   }
   if (specific) {
-    contentNudge += 3;
-    relevanceNudge += 3;
-    communicationNudge += 2;
-  }
-  if (depth) {
-    contentNudge += 3;
-    relevanceNudge += 3;
+    contentNudge += 5;
+    relevanceNudge += 4;
+    communicationNudge += 3;
     confidenceNudge += 2;
   }
+  if (depth) {
+    contentNudge += 4;
+    relevanceNudge += 4;
+    confidenceNudge += 3;
+  }
+  if (
+    !thin &&
+    answers.length >= 3 &&
+    toolHits + methodHits >= 2 &&
+    incompleteRatio < 0.35
+  ) {
+    contentNudge += 2;
+    relevanceNudge += 2;
+    communicationNudge += 2;
+  }
 
-  const clampNudge = (n: number) => Math.max(-10, Math.min(6, n));
+  const clampNudge = (n: number) => Math.max(-8, Math.min(8, n));
 
-  let maxOverall = 88;
-  if (depth) maxOverall = 88;
-  else if (specific) maxOverall = 78;
-  else maxOverall = 72;
-  if (vague) maxOverall = Math.min(maxOverall, 68);
-  if (thin) maxOverall = Math.min(maxOverall, 64);
-  if (unfinished && thin) maxOverall = Math.min(maxOverall, 62);
-  else if (unfinished) maxOverall = Math.min(maxOverall, 68);
-  if (incompleteRatio >= 0.3) maxOverall = Math.min(maxOverall, 66);
+  let maxOverall = 82;
+  if (depth) maxOverall = 90;
+  else if (specific) maxOverall = 84;
+  else maxOverall = 78;
+  if (vague) maxOverall = Math.min(maxOverall, 76);
+  if (thin) maxOverall = Math.min(maxOverall, 70);
+  if (unfinished && thin) maxOverall = Math.min(maxOverall, 64);
+  else if (unfinished) maxOverall = Math.min(maxOverall, 74);
+  if (incompleteRatio >= 0.4) maxOverall = Math.min(maxOverall, 72);
 
   return {
     contentNudge: clampNudge(contentNudge),
@@ -502,14 +587,14 @@ function alignRecommendation(
 ): InterviewFeedback["recommendation"] {
   if (overall >= 85 && quality.depth) return "strong_hire";
   if (
-    overall >= 70 &&
+    overall >= 75 &&
     (quality.specific || quality.depth) &&
     !quality.thin &&
     !quality.unfinished
   ) {
     return "hire";
   }
-  if (overall >= 73 && !quality.thin && !quality.unfinished && !quality.vague) {
+  if (overall >= 72 && !quality.thin && !quality.unfinished) {
     return "hire";
   }
   if (overall >= 58) return "maybe";

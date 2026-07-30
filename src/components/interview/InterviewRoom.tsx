@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Square } from "lucide-react";
+import { Pause, Play, RotateCcw, Square } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { saveInterviewClient } from "@/lib/db/interviews.client";
 import { uploadInterviewRecording } from "@/lib/firebase/storage";
@@ -127,6 +127,9 @@ export function InterviewRoom({
   const [listenState, setListenState] = useState<ListenState>("idle");
   const [nowTs, setNowTs] = useState(() => Date.now());
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [pauseStartedAt, setPauseStartedAt] = useState<number | null>(null);
+  const [pausedAccumulated, setPausedAccumulated] = useState(0);
 
   const media = useMediaStream();
   const {
@@ -145,6 +148,11 @@ export function InterviewRoom({
   const mediaStreamRef = useRef(media.stream);
   const ackAudioRef = useRef<string[]>([]);
   const ackIndexRef = useRef(0);
+  const lastQuestionAudioRef = useRef<{ text: string; audio: string } | null>(
+    null,
+  );
+  const pausedRef = useRef(false);
+  const pauseStartedAtRef = useRef<number | null>(null);
   const speechRef = useRef<{
     start: () => void;
     stop: () => void;
@@ -168,6 +176,10 @@ export function InterviewRoom({
   }, [media.stream]);
 
   useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  useEffect(() => {
     if (phase !== "live") return;
     const id = window.setInterval(() => setNowTs(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -185,6 +197,7 @@ export function InterviewRoom({
         setListenState("speaking");
         const audioBase64 = await fetchSpeechBase64(text);
         if (audioBase64) {
+          lastQuestionAudioRef.current = { text, audio: audioBase64 };
           await playBase64Mp3(audioBase64);
         }
       } catch {
@@ -222,6 +235,52 @@ export function InterviewRoom({
       });
     }
   }, []);
+
+  const replayCurrentQuestion = useCallback(async () => {
+    const question =
+      sessionRef.current.messages.filter((m) => m.role === "assistant").at(-1)
+        ?.content || "";
+    if (!question) return;
+
+    speechRef.current.stop();
+    void recorder.stop();
+    stopPlayback();
+    setListenState("speaking");
+
+    const cached = lastQuestionAudioRef.current;
+    try {
+      if (cached?.text === question && cached.audio) {
+        await playBase64Mp3(cached.audio);
+      } else {
+        await speakText(question);
+      }
+    } catch {
+      // best-effort
+    }
+  }, [playBase64Mp3, recorder, speakText, stopPlayback]);
+
+  const pauseInterview = useCallback(() => {
+    if (pausedRef.current) return;
+    speechRef.current.stop();
+    void recorder.stop();
+    stopPlayback();
+    pauseStartedAtRef.current = Date.now();
+    setPauseStartedAt(Date.now());
+    setPaused(true);
+    setListenState("idle");
+  }, [recorder, stopPlayback]);
+
+  const resumeInterview = useCallback(() => {
+    if (!pausedRef.current) return;
+    const started = pauseStartedAtRef.current;
+    if (started) {
+      setPausedAccumulated((total) => total + (Date.now() - started));
+    }
+    pauseStartedAtRef.current = null;
+    setPauseStartedAt(null);
+    setPaused(false);
+    void replayCurrentQuestion();
+  }, [replayCurrentQuestion]);
 
   const attachRecording = useCallback(
     async (current: InterviewSession): Promise<InterviewSession> => {
@@ -328,9 +387,17 @@ export function InterviewRoom({
 
         await waitBeforeNextQuestion(answerEndedAt);
 
+        if (pausedRef.current) {
+          return;
+        }
+
         stopPlayback();
         setListenState("speaking");
         if (result.audioBase64) {
+          lastQuestionAudioRef.current = {
+            text: result.reply,
+            audio: result.audioBase64,
+          };
           await playBase64Mp3(result.audioBase64);
         } else {
           await speakText(result.reply);
@@ -350,13 +417,20 @@ export function InterviewRoom({
 
   const onUtteranceEnd = useEffectEvent(
     async (transcript: string, durationMs: number) => {
+      if (pausedRef.current) return;
       const blob = await recorder.stop();
       void submitAnswer(transcript, durationMs, blob);
     },
   );
 
   const onBackchannel = useEffectEvent(() => {
-    if (phaseRef.current !== "live" || submitLockRef.current) return;
+    if (
+      phaseRef.current !== "live" ||
+      submitLockRef.current ||
+      pausedRef.current
+    ) {
+      return;
+    }
     playListeningAck();
   });
 
@@ -384,7 +458,11 @@ export function InterviewRoom({
     const started = session.startedAt
       ? new Date(session.startedAt).getTime()
       : nowTs;
-    const elapsedSec = Math.max(0, Math.floor((nowTs - started) / 1000));
+    const livePause = pauseStartedAt ? nowTs - pauseStartedAt : 0;
+    const elapsedSec = Math.max(
+      0,
+      Math.floor((nowTs - started - pausedAccumulated - livePause) / 1000),
+    );
     const targetSec = session.durationMinutes * 60;
     const remainingSec = targetSec - elapsedSec;
     return {
@@ -395,7 +473,13 @@ export function InterviewRoom({
       overtime: remainingSec < 0,
       progress: Math.min(100, (elapsedSec / Math.max(targetSec, 1)) * 100),
     };
-  }, [nowTs, session.durationMinutes, session.startedAt]);
+  }, [
+    nowTs,
+    pauseStartedAt,
+    pausedAccumulated,
+    session.durationMinutes,
+    session.startedAt,
+  ]);
 
   useEffect(() => {
     if (phase === "live" && !media.stream) {
@@ -415,7 +499,13 @@ export function InterviewRoom({
   }, [phase, media.stream, sessionRecording, startSessionRec]);
 
   useEffect(() => {
-    if (phase !== "live" || busy || avaSpeaking || !speech.supported) {
+    if (
+      phase !== "live" ||
+      busy ||
+      avaSpeaking ||
+      paused ||
+      !speech.supported
+    ) {
       return;
     }
 
@@ -430,7 +520,7 @@ export function InterviewRoom({
     };
     // Intentionally depend on conversation gates only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, busy, avaSpeaking, speech.supported]);
+  }, [phase, busy, avaSpeaking, paused, speech.supported]);
 
   useEffect(() => {
     if (avaSpeaking) setListenState("speaking");
@@ -557,8 +647,9 @@ export function InterviewRoom({
     .join(" ")
     .trim();
 
-  const statusLabel =
-    listenState === "speaking"
+  const statusLabel = paused
+    ? "Paused"
+    : listenState === "speaking"
       ? "Ava is speaking"
       : listenState === "processing"
         ? "Thinking…"
@@ -566,8 +657,9 @@ export function InterviewRoom({
           ? "Listening — speak naturally"
           : "Ready";
 
-  const statusTone =
-    listenState === "speaking"
+  const statusTone = paused
+    ? "neutral"
+    : listenState === "speaking"
       ? "brand"
       : listenState === "processing"
         ? "warning"
@@ -575,15 +667,20 @@ export function InterviewRoom({
           ? "danger"
           : "neutral";
 
-  const helperText = !speech.supported
-    ? "Type your answer. We’ll send it after a short pause."
-    : listenState === "listening"
-      ? "I’m listening. Pause when you’re done — I’ll take that as your answer."
-      : listenState === "processing"
-        ? "Thanks — taking a moment, then Ava’s next question…"
-        : listenState === "speaking"
-          ? "Listen to Ava. Your mic will open automatically when she finishes."
-          : "Waiting…";
+  const helperText = paused
+    ? "Interview paused. Press Play to hear the question again and continue."
+    : !speech.supported
+      ? "Type your answer. We’ll send it after a short pause."
+      : listenState === "listening"
+        ? "I’m listening. Pause when you’re done — I’ll take that as your answer."
+        : listenState === "processing"
+          ? "Thanks — taking a moment, then Ava’s next question…"
+          : listenState === "speaking"
+            ? "Listen to Ava. Your mic will open automatically when she finishes."
+            : "Waiting…";
+
+  const controlsLocked = busy && listenState === "processing";
+  const canReplay = Boolean(latestQuestion) && !controlsLocked;
 
   return (
     <>
@@ -613,7 +710,12 @@ export function InterviewRoom({
                 />
                 {statusLabel}
               </Badge>
-              {sessionRecording ? (
+              {paused ? (
+                <Badge tone="neutral" className="inline-flex items-center gap-2">
+                  Paused
+                </Badge>
+              ) : null}
+              {sessionRecording && !paused ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-[var(--ink)]/70 px-3 py-1.5 font-[family-name:var(--font-data)] text-[10px] uppercase tracking-[0.14em] text-[var(--stage-ink)]">
                   <span className="rec-dot inline-block h-1.5 w-1.5 rounded-full bg-rose-400" />
                   Rec
@@ -694,15 +796,37 @@ export function InterviewRoom({
                   </p>
                 </div>
               </div>
-              <Button
-                variant="dangerGhost"
-                size="sm"
-                onClick={() => setEndConfirmOpen(true)}
-                disabled={busy && listenState === "processing"}
-                leadingIcon={Square}
-              >
-                End interview
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void replayCurrentQuestion()}
+                  disabled={!canReplay || paused}
+                  leadingIcon={RotateCcw}
+                >
+                  Redo
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    paused ? resumeInterview() : pauseInterview()
+                  }
+                  disabled={controlsLocked}
+                  leadingIcon={paused ? Play : Pause}
+                >
+                  {paused ? "Play" : "Pause"}
+                </Button>
+                <Button
+                  variant="dangerGhost"
+                  size="sm"
+                  onClick={() => setEndConfirmOpen(true)}
+                  disabled={controlsLocked}
+                  leadingIcon={Square}
+                >
+                  End interview
+                </Button>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
@@ -725,7 +849,7 @@ export function InterviewRoom({
                 value={manualFallback}
                 onChange={(e) => onManualChange(e.target.value)}
                 placeholder="Type naturally — pause briefly to send…"
-                disabled={busy || avaSpeaking}
+                disabled={busy || avaSpeaking || paused}
               />
             ) : null}
 
