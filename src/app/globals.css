@@ -505,56 +505,76 @@ a {
     );
 }
 
-/* Brand mark — same rounded waveform pills as hero / auth */
+/* Brand mark — calligraphic V (motion driven in Logo.tsx) */
 .logo-mark {
   position: relative;
   display: inline-flex;
-  height: 2.65rem;
-  width: 2.65rem;
+  height: 2.55rem;
+  width: 2.55rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  border-radius: 0.9rem;
+  overflow: visible;
+  border-radius: 0.85rem;
   border: 1px solid color-mix(in srgb, var(--ink) 88%, transparent);
   background:
-    linear-gradient(
-      160deg,
-      color-mix(in srgb, var(--accent) 22%, #12161f) 0%,
+    radial-gradient(
+      85% 75% at 30% 20%,
+      #1a2230 0%,
       #12161f 55%,
-      #0b1220 100%
+      #0c1018 100%
     );
   box-shadow: var(--shadow-soft);
 }
 
-.logo-mark-bars {
-  display: flex;
-  height: 64%;
-  width: 64%;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 2.5px;
+.logo-mark--live {
+  animation: logo-tile-pulse 3.2s ease-in-out infinite;
 }
 
-.logo-mark-bar {
-  flex: 1;
-  min-width: 0;
-  border-radius: 999px;
-  transform-origin: center bottom;
-  backface-visibility: hidden;
+.logo-mark-svg {
+  position: relative;
+  z-index: 1;
+  width: 1.4rem;
+  height: 1.4rem;
+  display: block;
+  overflow: visible;
 }
 
-.logo-mark-bar--accent {
-  background: color-mix(in srgb, var(--accent) 70%, white);
+.logo-mark-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
-.logo-mark-bar--ink {
-  background: rgba(240, 243, 247, 0.62);
+.logo-mark-echo {
+  opacity: 0;
+  will-change: transform, opacity;
 }
 
-.logo-mark-bar--live {
-  animation: waveform 1.25s ease-in-out infinite;
-  will-change: transform;
+.logo-mark-stroke {
+  will-change: stroke-dashoffset, opacity;
+}
+
+.logo-mark-bead {
+  opacity: 0;
+  filter: drop-shadow(0 0 2.5px rgba(94, 234, 212, 0.7));
+  will-change: opacity;
+}
+
+@keyframes logo-tile-pulse {
+  0%,
+  100% {
+    box-shadow: var(--shadow-soft);
+  }
+  50% {
+    box-shadow:
+      var(--shadow-soft),
+      0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent),
+      0 0 16px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
 }
 
 .sidebar-nav-divider {
@@ -779,13 +799,7 @@ a {
 
 
 /* Pause decorative motion while scrolling */
-html.is-scrolling .waveform-bar,
-html.is-scrolling .rec-dot,
-html.is-scrolling .auth-orb,
-html.is-scrolling .auth-mark,
-html.is-scrolling .voice-particle,
-html.is-scrolling .signal-ring,
-html.is-scrolling .logo-mark-bar--live {
+html.is-scrolling .logo-mark--live {
   animation-play-state: paused !important;
 }
 
@@ -799,14 +813,15 @@ html.is-scrolling .logo-mark-bar--live {
   .auth-mark,
   .voice-particle,
   .signal-ring,
-  .logo-mark-bar--live {
+  .logo-mark--live {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
 
-  .logo-mark-bar--live {
-    transform: scaleY(0.85);
+  .logo-mark-bead,
+  .logo-mark-echo {
+    display: none;
   }
 
   .voice-particles,

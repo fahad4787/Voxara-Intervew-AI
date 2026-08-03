@@ -103,9 +103,5 @@ export function useInterview(id: string) {
     setInterview(null);
   }, [interview]);
 
-  const updateInterview = useCallback((next: InterviewSession) => {
-    setInterview(next);
-  }, []);
-
-  return { interview, loading, error, removeInterview, updateInterview };
+  return { interview, loading, error, removeInterview };
 }

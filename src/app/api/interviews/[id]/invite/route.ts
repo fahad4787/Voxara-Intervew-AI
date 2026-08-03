@@ -1,29 +1,17 @@
 import { NextRequest } from "next/server";
 import { ApiError, fail, ok } from "@/lib/api/response";
-import { requireRequestUser } from "@/lib/auth/session";
+import {
+  requireOwnedInterview,
+  unauthorizedResponse,
+} from "@/lib/auth/guards";
 import { sendInterviewInvite } from "@/lib/email/send";
-import { isAdminConfigured } from "@/lib/firebase/admin";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, { params }: Params) {
   try {
-    const user = await requireRequestUser(request);
     const { id } = await params;
-
-    if (!isAdminConfigured()) {
-      throw new ApiError(
-        503,
-        "Firebase Admin is not configured",
-        "ADMIN_NOT_CONFIGURED",
-      );
-    }
-
-    const { interviewStore } = await import("@/lib/db/store");
-    const session = await interviewStore.getById(id);
-    if (!session || session.ownerId !== user.uid) {
-      throw new ApiError(404, "Interview not found", "NOT_FOUND");
-    }
+    const { session } = await requireOwnedInterview(request, id);
 
     if (!session.candidateEmail) {
       throw new ApiError(
@@ -54,9 +42,6 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     return ok({ sent: true, to: session.candidateEmail });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return fail(new ApiError(401, "Sign in required", "UNAUTHORIZED"));
-    }
-    return fail(error);
+    return fail(unauthorizedResponse(error));
   }
 }

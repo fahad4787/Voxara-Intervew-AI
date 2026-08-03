@@ -2,9 +2,9 @@ import { NextRequest } from "next/server";
 import { nanoid } from "nanoid";
 import { ApiError, fail, ok, parseJson } from "@/lib/api/response";
 import { turnSchema } from "@/lib/api/validators";
+import { requireAdminConfigured } from "@/lib/auth/guards";
 import { enrichCandidateMeta } from "@/lib/analysis/speech-metrics";
 import { interviewsRepository } from "@/lib/db/interviews.repository";
-import { isAdminConfigured } from "@/lib/firebase/admin";
 import { generateNextTurn } from "@/lib/openai/interview-engine";
 import { buildClosingMessage } from "@/lib/interview/closing";
 import { synthesizeSpeech } from "@/lib/openai/tts";
@@ -16,28 +16,6 @@ import type { InterviewMessage, InterviewSession } from "@/types/interview";
 
 function now() {
   return new Date().toISOString();
-}
-
-function withMessages(
-  session: InterviewSession,
-  messages: InterviewMessage[],
-): InterviewSession {
-  return {
-    ...session,
-    messages: [...session.messages, ...messages],
-    status: "in_progress",
-    startedAt: session.startedAt ?? now(),
-    updatedAt: now(),
-  };
-}
-
-function asSession(value: unknown): InterviewSession | null {
-  if (!value || typeof value !== "object") return null;
-  const session = value as InterviewSession;
-  if (!session.id || !session.token || !Array.isArray(session.messages)) {
-    return null;
-  }
-  return session;
 }
 
 function getTiming(session: InterviewSession) {
@@ -55,9 +33,7 @@ function getTiming(session: InterviewSession) {
   const nearEnd = elapsedMinutes >= targetMinutes * 0.85;
   const answersCap = answerCount >= maxAnswers && nearEnd;
   const forceWrapUp =
-    timeUp ||
-    answersCap ||
-    session.messages.length >= MAX_MESSAGES;
+    timeUp || answersCap || session.messages.length >= MAX_MESSAGES;
 
   return {
     elapsedMinutes,
@@ -70,23 +46,11 @@ function getTiming(session: InterviewSession) {
 
 export async function POST(request: NextRequest) {
   try {
+    requireAdminConfigured();
+
     const body = await parseJson(request);
     const input = turnSchema.parse(body);
-    const useAdmin = isAdminConfigured();
-
-    let session: InterviewSession | null = null;
-    if (useAdmin) {
-      session = await interviewsRepository.getByToken(input.token);
-    } else {
-      session = asSession(input.session);
-      if (!session || session.token !== input.token) {
-        throw new ApiError(
-          400,
-          "Interview session is required",
-          "SESSION_REQUIRED",
-        );
-      }
-    }
+    const session = await interviewsRepository.getByToken(input.token);
 
     if (!session) throw new ApiError(404, "Interview not found", "NOT_FOUND");
     if (session.status === "completed") {
@@ -104,14 +68,13 @@ export async function POST(request: NextRequest) {
       meta: enrichCandidateMeta(input.transcript, input.durationMs || 0),
     };
 
-    let working = useAdmin
-      ? await interviewsRepository.appendMessages(session.id, [candidateMessage])
-      : withMessages(session, [candidateMessage]);
+    let working = await interviewsRepository.appendMessages(session.id, [
+      candidateMessage,
+    ]);
 
     const timing = getTiming(working);
     const turn = await generateNextTurn(working, timing);
 
-    // Never trust early "shouldEnd" before ~85% of duration unless forced.
     const allowEnd = timing.forceWrapUp || timing.nearEnd;
     const shouldEnd = allowEnd && (turn.shouldEnd || timing.forceWrapUp);
 
@@ -130,11 +93,10 @@ export async function POST(request: NextRequest) {
       createdAt: now(),
     };
 
-    working = useAdmin
-      ? await interviewsRepository.appendMessages(working.id, [assistantMessage])
-      : withMessages(working, [assistantMessage]);
+    working = await interviewsRepository.appendMessages(working.id, [
+      assistantMessage,
+    ]);
 
-    // TTS only here — defer scoring to /complete so answers feel faster.
     let audioBase64: string | undefined;
     try {
       const audio = await synthesizeSpeech(reply);
@@ -148,7 +110,7 @@ export async function POST(request: NextRequest) {
       reply,
       shouldEnd,
       audioBase64,
-      persisted: useAdmin,
+      persisted: true as const,
     });
   } catch (error) {
     return fail(error);

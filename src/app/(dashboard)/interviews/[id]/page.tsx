@@ -2,14 +2,11 @@
 
 import { Suspense, use, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, ChevronLeft, RefreshCw, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api/client";
-import { saveInterviewClient } from "@/lib/db/interviews.client";
 import { formatDate } from "@/lib/utils/format";
 import { statusLabel, statusTone } from "@/lib/utils/status";
 import { useInterview } from "@/hooks/useInterviews";
-import type { InterviewSession } from "@/types/interview";
 import { DashboardContent } from "@/components/layout/DashboardShell";
 import { InviteLink } from "@/components/interviews/InviteLink";
 import { InterviewRecordingPlayer } from "@/components/interview/InterviewRecordingPlayer";
@@ -27,8 +24,6 @@ import { BodyText, DisplayTitle } from "@/components/ui/Typography";
 
 type Params = { params: Promise<{ id: string }> };
 
-type RescoreResponse = InterviewSession & { persisted?: boolean };
-
 export default function InterviewDetailPage({ params }: Params) {
   return (
     <Suspense fallback={null}>
@@ -44,13 +39,10 @@ function InterviewDetailContent({ params }: Params) {
   const invited = searchParams.get("invited") === "1";
   const inviteFailed = searchParams.get("invite") === "failed";
   const { id } = use(params);
-  const { interview, loading, error, removeInterview, updateInterview } =
-    useInterview(id);
+  const { interview, loading, error, removeInterview } = useInterview(id);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [rescoring, setRescoring] = useState(false);
-  const [rescoreError, setRescoreError] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,36 +76,6 @@ function InterviewDetailContent({ params }: Params) {
     }
   };
 
-  const handleRescore = async () => {
-    if (!interview) return;
-    setRescoring(true);
-    setRescoreError(null);
-    try {
-      const result = await apiFetch<RescoreResponse>(
-        `/api/interviews/${interview.id}/rescore`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            token: interview.token,
-            session: interview,
-          }),
-        },
-      );
-
-      const { persisted, ...next } = result;
-      if (!persisted) {
-        await saveInterviewClient(next);
-      }
-      updateInterview(next);
-    } catch (err) {
-      setRescoreError(
-        err instanceof Error ? err.message : "Failed to re-score interview",
-      );
-    } finally {
-      setRescoring(false);
-    }
-  };
-
   if (loading) {
     return (
       <DashboardContent>
@@ -138,7 +100,6 @@ function InterviewDetailContent({ params }: Params) {
     );
   }
 
-  const canRescore = interview.messages.some((m) => m.role === "candidate");
   const questionCount = interview.plan?.questions.length ?? 0;
 
   return (
@@ -185,32 +146,18 @@ function InterviewDetailContent({ params }: Params) {
             <Badge tone={statusTone[interview.status]}>
               {statusLabel(interview.status)}
             </Badge>
-            {canRescore ? (
-              <Button
-                variant="soft"
-                onClick={() => void handleRescore()}
-                loading={rescoring}
-                disabled={rescoring || deleting}
-                leadingIcon={RefreshCw}
-              >
-                Re-score
-              </Button>
-            ) : null}
             <Button
               variant="dangerGhost"
               size="sm"
               iconOnly
               onClick={() => setConfirmOpen(true)}
-              disabled={deleting || rescoring}
+              disabled={deleting}
               leadingIcon={Trash2}
               aria-label="Delete interview"
             />
           </div>
         </div>
 
-        {rescoreError ? (
-          <InlineAlert className="mb-4">{rescoreError}</InlineAlert>
-        ) : null}
         {deleteError ? (
           <InlineAlert className="mb-4">{deleteError}</InlineAlert>
         ) : null}
@@ -263,13 +210,7 @@ function InterviewDetailContent({ params }: Params) {
           ) : (
             <div className="grid items-start gap-6 lg:grid-cols-2">
               <div className="min-w-0">
-                {rescoring ? (
-                  <PageSpinner
-                    label="Re-scoring…"
-                    fill={false}
-                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] py-16"
-                  />
-                ) : interview.report ? (
+                {interview.report ? (
                   <ReportSummary report={interview.report} />
                 ) : null}
               </div>

@@ -27,6 +27,10 @@ import {
   markClientSetupComplete,
   updateUserProfileFields,
 } from "@/lib/firebase/users";
+import {
+  clearClientAuthCookie,
+  setClientAuthCookie,
+} from "@/lib/auth/client-auth-cookie";
 import { markSetupCompleteLocal } from "@/hooks/useSetupStatus";
 import type { AuthUser } from "@/lib/auth/types";
 
@@ -109,6 +113,7 @@ async function finishAuthSession(input: {
   });
   await markClientSetupComplete(input.uid);
   markSetupCompleteLocal();
+  setClientAuthCookie();
   await syncServerSession(input.idToken);
   return profile;
 }
@@ -155,17 +160,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         if (!firebaseUser) {
           applyUser(null);
+          clearClientAuthCookie();
           return;
         }
 
         const profile = await getUserProfile(firebaseUser.uid);
         applyUser(profile || fallbackUser(firebaseUser));
+        setClientAuthCookie();
       } catch (error) {
         console.error("Failed to load auth profile", error);
         if (firebaseUser) {
           applyUser(fallbackUser(firebaseUser));
+          setClientAuthCookie();
         } else {
           applyUser(null);
+          clearClientAuthCookie();
         }
       } finally {
         setReady(true);
@@ -243,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await firebaseSignOut(getClientAuth());
+    clearClientAuthCookie();
     await clearServerSession();
     applyUser(null);
   }, [applyUser]);

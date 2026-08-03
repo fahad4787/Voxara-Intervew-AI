@@ -3,14 +3,6 @@ import { ImageResponse } from "next/og";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
-const BARS = [
-  { h: 48, accent: false },
-  { h: 88, accent: true },
-  { h: 60, accent: false },
-  { h: 110, accent: true },
-  { h: 54, accent: false },
-] as const;
-
 export default function AppleIcon() {
   return new ImageResponse(
     (
@@ -25,28 +17,22 @@ export default function AppleIcon() {
           borderRadius: 40,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: 10,
-            width: 96,
-            height: 96,
-          }}
-        >
-          {BARS.map((bar, i) => (
-            <div
-              key={i}
-              style={{
-                width: 14,
-                height: bar.h,
-                borderRadius: 999,
-                background: bar.accent ? "#2dd4bf" : "rgba(240,243,247,0.62)",
-              }}
-            />
-          ))}
-        </div>
+        <svg width="96" height="96" viewBox="0 0 32 32" fill="none">
+          <defs>
+            <linearGradient id="v" x1="7.5" y1="8" x2="24.5" y2="8">
+              <stop offset="0%" stopColor="#dce3ec" />
+              <stop offset="50%" stopColor="#f3f7fb" />
+              <stop offset="100%" stopColor="#5eead4" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M7.5 8C11.5 16.5 14.2 22.2 16 24.5C17.8 22.2 20.5 16.5 24.5 8"
+            stroke="url(#v)"
+            strokeWidth="3.1"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </div>
     ),
     { ...size },

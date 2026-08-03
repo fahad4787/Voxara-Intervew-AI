@@ -3,14 +3,6 @@ import { ImageResponse } from "next/og";
 export const size = { width: 64, height: 64 };
 export const contentType = "image/png";
 
-const BARS = [
-  { h: 18, accent: false },
-  { h: 32, accent: true },
-  { h: 22, accent: false },
-  { h: 40, accent: true },
-  { h: 20, accent: false },
-] as const;
-
 export default function Icon() {
   return new ImageResponse(
     (
@@ -25,28 +17,22 @@ export default function Icon() {
           borderRadius: 14,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: 4,
-            width: 34,
-            height: 34,
-          }}
-        >
-          {BARS.map((bar, i) => (
-            <div
-              key={i}
-              style={{
-                width: 5,
-                height: bar.h,
-                borderRadius: 999,
-                background: bar.accent ? "#2dd4bf" : "rgba(240,243,247,0.62)",
-              }}
-            />
-          ))}
-        </div>
+        <svg width="34" height="34" viewBox="0 0 32 32" fill="none">
+          <defs>
+            <linearGradient id="v" x1="7.5" y1="8" x2="24.5" y2="8">
+              <stop offset="0%" stopColor="#dce3ec" />
+              <stop offset="50%" stopColor="#f3f7fb" />
+              <stop offset="100%" stopColor="#5eead4" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M7.5 8C11.5 16.5 14.2 22.2 16 24.5C17.8 22.2 20.5 16.5 24.5 8"
+            stroke="url(#v)"
+            strokeWidth="3.1"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </div>
     ),
     { ...size },

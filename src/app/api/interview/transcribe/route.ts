@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { fail, ok } from "@/lib/api/response";
+import { ApiError, fail, ok } from "@/lib/api/response";
+import { requireInterviewToken } from "@/lib/auth/guards";
 import { getOpenAI } from "@/lib/openai/client";
 
 export const runtime = "nodejs";
@@ -7,12 +8,18 @@ export const runtime = "nodejs";
 export async function POST(request: NextRequest) {
   try {
     const form = await request.formData();
-    const file = form.get("audio");
-    if (!(file instanceof File)) {
-      return fail(new Error("Audio file is required"));
+    const token = form.get("token");
+    if (typeof token !== "string" || token.trim().length < 8) {
+      throw new ApiError(401, "Valid interview token required", "UNAUTHORIZED");
     }
 
-    // Tiny clips are usually silence / noise — skip Whisper.
+    await requireInterviewToken(token);
+
+    const file = form.get("audio");
+    if (!(file instanceof File)) {
+      throw new ApiError(400, "Audio file is required", "VALIDATION_ERROR");
+    }
+
     if (file.size < 1200) {
       return ok({ text: "", skipped: true });
     }
@@ -23,7 +30,7 @@ export async function POST(request: NextRequest) {
       model: process.env.OPENAI_TRANSCRIBE_MODEL || "whisper-1",
       language: "en",
       prompt:
-        "Interview about UI/UX design. Common terms: Figma, Miro, Sketch, Jira, wireframe, prototype, persona, usability, accessibility, WCAG, stakeholder, research, A/B testing.",
+        "Professional job interview conversation. Prefer clear wording; ignore filler noise.",
     });
 
     return ok({

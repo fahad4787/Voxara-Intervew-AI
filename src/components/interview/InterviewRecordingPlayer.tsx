@@ -137,8 +137,8 @@ export function InterviewRecordingPlayer({
         title={title}
         description={
           local
-            ? "Stored on this browser for now — play back at 1×, 2×, or 3×."
-            : "Full session audio — play back at 1×, 2×, or 3×."
+            ? "Stored on this browser — play back at 1×, 2×, or 3×."
+            : "Cloud recording — available across devices at 1×, 2×, or 3×."
         }
       />
       <PanelBody className="space-y-4">

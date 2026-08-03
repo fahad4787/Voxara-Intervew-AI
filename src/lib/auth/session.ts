@@ -1,18 +1,25 @@
 import { cookies } from "next/headers";
 import { getAdminAuth, isAdminConfigured } from "@/lib/firebase/admin";
 import {
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SEC,
+} from "@/lib/auth/cookies";
+import {
   getBearerToken,
   verifyFirebaseIdToken,
   type VerifiedUser,
 } from "@/lib/auth/verify-id-token";
 
-export const SESSION_COOKIE_NAME = "__session";
-const SESSION_DAYS = 14;
+export {
+  CLIENT_AUTH_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SEC,
+} from "@/lib/auth/cookies";
 
 export async function createSessionCookie(idToken: string) {
   if (!isAdminConfigured()) return;
 
-  const expiresIn = SESSION_DAYS * 24 * 60 * 60 * 1000;
+  const expiresIn = SESSION_MAX_AGE_SEC * 1000;
   const sessionCookie = await getAdminAuth().createSessionCookie(idToken, {
     expiresIn,
   });
@@ -22,7 +29,7 @@ export async function createSessionCookie(idToken: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: SESSION_DAYS * 24 * 60 * 60,
+    maxAge: SESSION_MAX_AGE_SEC,
     path: "/",
   });
 }

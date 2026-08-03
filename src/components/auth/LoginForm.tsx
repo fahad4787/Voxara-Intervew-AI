@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -12,8 +12,20 @@ import { PasswordInput } from "@/components/ui/PasswordInput";
 import { BodyText, DisplayTitle, Eyebrow } from "@/components/ui/Typography";
 import { useSetupStatus } from "@/hooks/useSetupStatus";
 
+function safeNextPath(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/dashboard";
+  }
+  return value;
+}
+
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = useMemo(
+    () => safeNextPath(searchParams.get("next")),
+    [searchParams],
+  );
   const { signIn, user, ready } = useAuth();
   const setup = useSetupStatus();
   const [loading, setLoading] = useState(false);
@@ -21,8 +33,8 @@ export function LoginForm() {
   const [form, setForm] = useState({ email: "", password: "" });
 
   useEffect(() => {
-    if (ready && user) router.replace("/dashboard");
-  }, [ready, user, router]);
+    if (ready && user) router.replace(nextPath);
+  }, [ready, user, router, nextPath]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -30,7 +42,7 @@ export function LoginForm() {
     setError(null);
     try {
       await signIn(form);
-      router.replace("/dashboard");
+      router.replace(nextPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in");
       setLoading(false);
